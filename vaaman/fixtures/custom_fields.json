@@ -1,0 +1,14 @@
+[
+    {
+        "doctype": "Custom Field",
+        "dt": "Payment Request",
+        "module": "Vaaman",
+        "name": "Payment-Request-custom-status",
+        "fieldname": "custom_status",
+        "fieldtype": "Select",
+        "label": "Status",
+        "options": "\nDraft\nRequested\nInitiated\nPartially Paid\nPayment Ordered\nPaid\nFailed\nCancelled",
+        "insert_after": "workflow_state",
+        "__islocal": 1
+    }
+]

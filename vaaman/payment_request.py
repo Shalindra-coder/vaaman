@@ -30,7 +30,7 @@ def update_status_db(docname):
 
         if doc.docstatus == 2:
             new_status = "Cancelled"
-        elif not doc.custom_custom_status or doc.workflow_state == "Draft":
+        elif not doc.custom_status or doc.workflow_state == "Draft":
             new_status = "Draft"
         elif doc.workflow_state == "Approval Pending By Management":
             new_status = "Ready to Pay"
@@ -39,9 +39,9 @@ def update_status_db(docname):
         else:
             new_status = "Initiated"
 
-        if doc.custom_custom_status != new_status:
+        if doc.custom_status != new_status:
             # This will update status and set modified_by to current user
-            frappe.db.set_value("Payment Request", docname, "custom_custom_status", new_status)
+            frappe.db.set_value("Payment Request", docname, "custom_status", new_status)
 
     except Exception as e:
         frappe.log_error(f"Failed to update custom status for Payment Request {docname}: {str(e)}")
