@@ -8,6 +8,7 @@ app_license = "mit"
 # Apps
 # ------------------
 
+
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
@@ -44,6 +45,8 @@ app_license = "mit"
 
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
+
+doctype_js = {"Payment Request" : "public/js/payment_request.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -145,11 +148,15 @@ app_license = "mit"
 # 	}
 # }
 
+
 doc_events = {
     "Payment Entry": {
-        "on_submit": "vaaman.payment_request.update_all_linked_payment_requests"
+        "on_cancel": "vaaman.payment_request.update_all_linked_payment_requests",
+        "on_submit": "vaaman.payment_request.update_all_linked_payment_requests",
     }
 }
+
+
 
 
 

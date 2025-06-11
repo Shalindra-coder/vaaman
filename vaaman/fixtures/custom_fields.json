@@ -6,6 +6,7 @@
         "name": "Payment-Request-custom-status",
         "fieldname": "custom_status",
         "fieldtype": "Select",
+        "allow_on_submit": 1,
         "label": "Status",
         "options": "\nDraft\nRequested\nInitiated\nPartially Paid\nPayment Ordered\nPaid\nFailed\nCancelled",
         "insert_after": "workflow_state",
