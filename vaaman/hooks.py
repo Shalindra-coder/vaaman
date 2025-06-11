@@ -147,9 +147,10 @@ app_license = "mit"
 
 doc_events = {
     "Payment Entry": {
-        "on_submit": "vaaman.custom_status.update_payment_request_status_hook"
+        "on_submit": "vaaman.payment_request.update_all_linked_payment_requests"
     }
 }
+
 
 
 # Scheduled Tasks
@@ -249,9 +250,3 @@ doc_events = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
-def update_payment_request_status_hook(doc, method):
-    if doc.references:
-        for ref in doc.references:
-            if ref.reference_doctype and ref.reference_name:
-                from vaaman.custom_status import update_payment_request_status
-                update_payment_request_status(ref.reference_doctype, ref.reference_name)
