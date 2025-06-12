@@ -46,7 +46,9 @@ app_license = "mit"
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 
-doctype_js = {"Payment Request" : "public/js/payment_request.js"}
+app_include_js = [
+    "/assets/vaaman/js/payment_request.js"
+]
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -150,13 +152,16 @@ doctype_js = {"Payment Request" : "public/js/payment_request.js"}
 
 
 doc_events = {
+    "Payment Request": {
+        "on_update": "vaaman.payment_request.on_update"
+    },
     "Payment Entry": {
-        "on_cancel": "vaaman.payment_request.update_all_linked_payment_requests",
-        "on_submit": "vaaman.payment_request.update_all_linked_payment_requests",
+        "on_submit": [
+            "vaaman.payment_request.custom_update_payment_requests",
+            "vaaman.payment_request.update_all_linked_payment_requests"
+        ]
     }
 }
-
-
 
 
 
