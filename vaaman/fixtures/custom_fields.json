@@ -8,7 +8,7 @@
         "fieldtype": "Select",
         "allow_on_submit": 1,
         "label": "Status",
-        "options": "\nDraft\nRequested\nInitiated\nPartially Paid\nPayment Ordered\nPaid\nFailed\nCancelled",
+       "options": "\nDraft\nRequested\nReady to Pay\nInitiated\nPartially Paid\nPayment Ordered\nPaid\nFailed\nCancelled",
         "insert_after": "workflow_state",
         "__islocal": 1
     }
