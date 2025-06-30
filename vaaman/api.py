@@ -94,7 +94,7 @@ def bulk_make_draft_payment_entries(payment_requests):
             )
 
             pe.update({
-                "mode_of_payment": pr.mode_of_payment,
+                "mode_of_payment": "NEFT",
                 "reference_no": pr.name,
                 "reference_date": nowdate(),
                 "remarks": f"Payment Entry against {pr.reference_doctype} {pr.reference_name} via Payment Request {pr.name}",
