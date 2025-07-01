@@ -107,7 +107,7 @@ def bulk_make_draft_payment_entries(payment_requests):
                 'custom_party_bank_ifsc': pr.get('branch_code') if pr.get('branch_code') else "",
                 'custom_party_bank_name': pr.get('bank') if pr.get('bank') else "",
             })
-
+            
             # Optional: set default party bank account
             party_bank_account = frappe.db.get_value(
                 "Bank Account",
