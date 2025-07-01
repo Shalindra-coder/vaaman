@@ -32,8 +32,6 @@ def bulk_make_draft_payment_entries(payment_requests):
                 raise Exception("Payment Request is already marked as Paid")
             if not flt(pr.outstanding_amount):
                 raise Exception("Outstanding amount is zero")
-            if not pr.mode_of_payment:
-                raise Exception("Mode of Payment is required")
 
             # Avoid duplicate PE creation
             existing_pe = frappe.db.exists("Payment Entry", {"reference_no": pr.name, "docstatus": ("<", 2)})
@@ -95,8 +93,8 @@ def bulk_make_draft_payment_entries(payment_requests):
 
             pe.update({
                 "mode_of_payment": "NEFT",
-                "reference_no": pr.name,
-                "reference_date": nowdate(),
+                "reference_no": "",
+                "reference_date": "",
                 "remarks": f"Payment Entry against {pr.reference_doctype} {pr.reference_name} via Payment Request {pr.name}",
                 "cost_center": pr.get("cost_center"),
                 "project": pr.get("project"),

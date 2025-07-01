@@ -1,5 +1,19 @@
 frappe.listview_settings['Payment Request'] = {
     onload: function(listview) {
+        const allowed_roles = [
+            "HO Accounts User Payment",
+            "HO Accounts User Sales",
+            "HO Accounts User Purchase"
+        ];
+
+        const user_roles = frappe.user_roles || [];
+
+        const has_permission = allowed_roles.some(role => user_roles.includes(role));
+
+        if (!has_permission) {
+            return;  // Don't show the button
+        }
+
         listview.page.add_inner_button(__('Make Draft Payment Entry'), function() {
             const selected_docs = listview.get_checked_items();
 
