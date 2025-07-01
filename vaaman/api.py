@@ -102,6 +102,10 @@ def bulk_make_draft_payment_entries(payment_requests):
                 "paid_to": party_account if pr.payment_request_type == "Outward" else pr.payment_account,
                 "party_type": party_type,
                 "party": party,
+                'custom_party_bank_account_no':pr.get('bank_account_no') if pr.get('bank_account_no') else "",
+                'party_bank_account': pr.get('bank_account_name') if pr.get('bank_account_name') else "",
+                'custom_party_bank_ifsc': pr.get('branch_code') if pr.get('branch_code') else "",
+                'custom_party_bank_name': pr.get('bank_name') if pr.get('bank_name') else "",
             })
 
             # Optional: set default party bank account
