@@ -1,10 +1,10 @@
 import frappe
-from frappe.utils import flt, cint
+from frappe.utils import flt
 
 @frappe.whitelist()
 def update_status_db(docname):
     """
-    Updates the custom_status of a single Payment Request based on its own amount and outstanding_amount.
+    Updates the custom_status of a single Payment Request based on its own amount and outstanding.
     Returns the new status.
     """
     try:
@@ -19,13 +19,8 @@ def update_status_db(docname):
             new_status = "Ready to Pay"
         elif doc.docstatus == 1:
             new_status = get_payment_request_status(doc)
-        elif doc.outstanding_amount == 0:
-            new_status = "Paid"
-        elif 0 <= doc.outstanding_amount <= doc.amount:
-            new_status = "Partially Paid"
         else:
             new_status = "Initiated"
-        
 
         # Update if changed
         if doc.custom_status != new_status:
@@ -40,11 +35,18 @@ def update_status_db(docname):
 
 def get_payment_request_status(doc):
     """
-    Determines status using amount and outstanding_amount from the Payment Request itself.
+    Determines status using grand_total and real-time outstanding from linked document.
     """
     try:
-        amount = flt(doc.amount or 0)
-        outstanding = flt(doc.outstanding_amount or 0)
+        amount = flt(doc.grand_total or 0)
+        outstanding = 0
+
+        if doc.reference_doctype and doc.reference_name:
+            outstanding = frappe.db.get_value(doc.reference_doctype, doc.reference_name, "outstanding_amount") or 0
+            outstanding = flt(outstanding)
+        else:
+            # fallback to local field, if present
+            outstanding = flt(doc.outstanding_amount or 0)
 
         if amount == 0:
             return "Initiated"
@@ -64,7 +66,7 @@ def get_payment_request_status(doc):
 @frappe.whitelist()
 def update_all_linked_payment_requests(doc, method=None):
     """
-    On submission of a Payment Entry, update statuses of all linked Payment Requests.
+    On submission or cancellation of a Payment Entry, update statuses of all linked Payment Requests.
     """
     try:
         references = doc.get("references", [])
@@ -94,25 +96,27 @@ def update_all_linked_payment_requests(doc, method=None):
     except Exception as e:
         frappe.log_error(f"update_all_linked_payment_requests error in {doc.name}: {str(e)}", "Payment Request Sync Error")
 
-def on_update(doc, method):
-    """
-    Sync ERPNext system status to custom_status (for Payment Request).
-    """
-    try:
-        if doc.doctype == "Payment Request" and doc.custom_status != doc.status:
-            doc.db_set("custom_status", doc.status)
-            frappe.logger().info(f"Synced status to custom_status for {doc.name}")
-    except Exception as e:
-        frappe.log_error(f"on_update error for {doc.name}: {str(e)}", "Payment Request Sync Error")
+# Optional: Remove if not needed
+# def on_update(doc, method):
+#     """
+#     Deprecated: syncing custom_status from system status. Handled by update_status_db now.
+#     """
+#     try:
+#         if doc.doctype == "Payment Request" and doc.custom_status != doc.status:
+#             doc.db_set("custom_status", doc.status)
+#             frappe.logger().info(f"Synced status to custom_status for {doc.name}")
+#     except Exception as e:
+#         frappe.log_error(f"on_update error for {doc.name}: {str(e)}", "Payment Request Sync Error")
 
+# Optional wrapper if overriding ERPNext core function
 from erpnext.accounts.doctype.payment_request.payment_request import update_payment_requests_as_per_pe_references as original_update
 
 def custom_update_payment_requests(references, cancel=None):
     """
-    Override ERPNext's update_payment_requests_as_per_pe_references to ensure correct handling of references.
+    Override ERPNext's update_payment_requests_as_per_pe_references to ensure correct handling.
     """
     try:
-        if isinstance(references, frappe.model.Document) and references.doctype == "Payment Entry":
+        if isinstance(references, frappe.model.document.Document) and references.doctype == "Payment Entry":
             references = references.get("references", [])
             frappe.log_error(f"Extracted references from Payment Entry {references.name}: {references}", "Payment Request Sync Debug")
 
