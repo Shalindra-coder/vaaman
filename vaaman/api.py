@@ -156,8 +156,8 @@ def bulk_make_draft_payment_entries(payment_requests):
             pe.insert(ignore_permissions=True)
 
             # Optionally set a link back on PR (if custom field exists)
-            if frappe.db.has_column("Payment Request", "custom_payment_entry"):
-                pr.db_set("custom_payment_entry", pe.name)
+            if frappe.db.has_column("Payment Request", "custom_payment_initiated"):
+                pr.db_set("custom_payment_initiated", 1)
 
             frappe.logger().info(f"[Bulk Payment Entry] Created: {pe.name} for {pr.name}")
             success.append(pe.name)
