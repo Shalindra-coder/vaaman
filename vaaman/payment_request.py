@@ -19,8 +19,10 @@ def update_status_db(docname=None,method=None):
             new_status = "Ready to Pay"
         elif doc.docstatus == 1:
             new_status = get_payment_request_status(doc)
-        else:
+		elif doc.workflow_state == "Approved":
             new_status = "Initiated"
+		else:
+            new_status = "Draft"
 
         # Update if changed
         if doc.custom_status != new_status:
