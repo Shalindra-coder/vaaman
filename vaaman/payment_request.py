@@ -2,7 +2,7 @@ import frappe
 from frappe.utils import flt
 
 @frappe.whitelist()
-def update_status_db(docname,method=None):
+def update_status_db(docname=None,method=None):
     """
     Updates the custom_status of a single Payment Request based on its own amount and outstanding.
     Returns the new status.
