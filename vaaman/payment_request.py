@@ -19,8 +19,13 @@ def update_status_db(docname):
             new_status = "Ready to Pay"
         elif doc.docstatus == 1:
             new_status = get_payment_request_status(doc)
+        elif doc.outstanding_amount == 0:
+            new_status = "Paid"
+        elif 0 <= doc.outstanding_amount <= doc.amount:
+            new_status = "Partially Paid"
         else:
-            new_status = "Draft"
+            new_status = "Initiated"
+        
 
         # Update if changed
         if doc.custom_status != new_status:
