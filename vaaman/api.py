@@ -68,6 +68,15 @@ def bulk_make_draft_payment_entries(payment_requests):
                 else:
                     raise Exception("Missing payment_account and no default bank account found")
 
+            # Resolve party bank account
+            bank_account = pr.get('bank_account')
+            if not bank_account:
+                bank_account = frappe.db.get_value(
+                    "Bank Account",
+                    {"party_type": party_type, "party": party, "is_default": 1},
+                    "name"
+                )
+
             # Currency logic
             party_account_currency = (
                 pr.get("party_account_currency")
@@ -102,20 +111,11 @@ def bulk_make_draft_payment_entries(payment_requests):
                 "paid_to": party_account if pr.payment_request_type == "Outward" else pr.payment_account,
                 "party_type": party_type,
                 "party": party,
-                'custom_party_bank_account_no':pr.get('bank_account_no') if pr.get('bank_account_no') else "",
-                'party_bank_account': pr.get('bank_account') if pr.get('bank_account') else "",
-                'custom_party_bank_ifsc': pr.get('branch_code') if pr.get('branch_code') else "",
-                'custom_party_bank_name': pr.get('bank') if pr.get('bank') else "",
+                "party_bank_account": bank_account or "",
+                "custom_party_bank_account_no": pr.get("bank_account_no") or "",
+                "custom_party_bank_ifsc": pr.get("branch_code") or "",
+                "custom_party_bank_name": pr.get("bank") or "",
             })
-            
-            # Optional: set default party bank account
-            party_bank_account = frappe.db.get_value(
-                "Bank Account",
-                {"party_type": party_type, "party": party, "is_default": 1},
-                "name"
-            )
-            if party_bank_account:
-                pe.party_bank_account = party_bank_account
 
             # Currency setup
             pe.paid_from_account_currency = frappe.get_cached_value("Account", pe.paid_from, "account_currency")
@@ -146,7 +146,6 @@ def bulk_make_draft_payment_entries(payment_requests):
                         or ref_doc.get("rounded_total")
                         or ref_doc.get("total")
                     )
-
 
             # Optional: traceability comment
             pe.add_comment("Comment", text=f"Created via bulk tool from Payment Request {pr.name}")
