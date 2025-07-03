@@ -37,18 +37,11 @@ def update_status_db(docname=None,method=None):
 
 def get_payment_request_status(doc):
     """
-    Determines status using grand_total and real-time outstanding from linked document.
+    Determines Payment Request status using its own grand_total and outstanding_amount.
     """
     try:
         amount = flt(doc.grand_total or 0)
-        outstanding = 0
-
-        if doc.reference_doctype and doc.reference_name:
-            outstanding = frappe.db.get_value(doc.reference_doctype, doc.reference_name, "outstanding_amount") or 0
-            outstanding = flt(outstanding)
-        else:
-            # fallback to local field, if present
-            outstanding = flt(doc.outstanding_amount or 0)
+        outstanding = flt(doc.outstanding_amount or 0)
 
         if amount == 0:
             return "Initiated"
@@ -64,6 +57,7 @@ def get_payment_request_status(doc):
     except Exception as e:
         frappe.log_error(f"get_payment_request_status error for {doc.name}: {str(e)}", "Payment Request Sync Error")
         return "Initiated"
+
 
 @frappe.whitelist()
 def update_all_linked_payment_requests(doc, method=None):
