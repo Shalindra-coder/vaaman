@@ -26,7 +26,8 @@ def update_status_db(docname=None, method=None):
 
         # Update only if changed
         if doc.custom_status != new_status:
-            frappe.db.set_value("Payment Request", docname, "custom_status", new_status)
+            # Silent update without updating modified timestamp
+            frappe.db.set_value("Payment Request", docname, "custom_status", new_status, update_modified=False)
             frappe.logger().info(f"Updated Payment Request {docname} custom_status to {new_status}")
 
             # 🔔 Fire realtime event
