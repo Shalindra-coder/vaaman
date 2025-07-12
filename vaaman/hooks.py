@@ -47,11 +47,13 @@ app_license = "mit"
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 
 app_include_js = [
-    "/assets/vaaman/js/payment_request.js"
+    "/assets/vaaman/js/payment_request.js",
+    "/assets/vaaman/js/reco.js"
 ]
 
 doctype_js = {
-    "Payment Request": "public/js/payment_request_list.js"
+    "Payment Request": "public/js/payment_request_list.js",
+    "Payment Entry": "public/js/reco.js"
 }
 
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
@@ -171,7 +173,7 @@ doc_events = {
 # Optional fallback to resync everything every 30 mins
 scheduler_events = {
     "cron": {
-        "*/30 * * * *": [
+        "* * * * *": [
             "vaaman.payment_request.sync_all_payment_requests"
         ]
     }
