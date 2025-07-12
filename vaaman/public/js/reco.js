@@ -8,13 +8,15 @@ frappe.listview_settings['Payment Entry'] = {
                 return;
             }
 
-            await frappe.call({
-                method: "your_app_path.payment_entry_tools.bulk_unreconcile",
+            frappe.call({
+                method: "vaaman.reco.bulk_unreconcile_payment_entries",
                 args: {
                     payment_entry_names: selected.map(row => row.name)
                 },
-                callback: function(r) {
-                    frappe.msgprint(r.message);
+                callback: function (r) {
+                    if (r.message) {
+                        frappe.msgprint(`Unreconciled ${r.message.unreconciled} Payment Entries.<br>Errors: ${r.message.failed.join(", ")}`);
+                    }
                     listview.refresh();
                 }
             });
