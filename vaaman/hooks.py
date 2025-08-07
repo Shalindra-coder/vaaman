@@ -46,17 +46,14 @@ app_license = "mit"
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 
-app_include_js = [
-    "/assets/vaaman/js/payment_request.js",
-    "/assets/vaaman/js/reco.js"
-]
+app_include_js = ["/assets/vaaman/js/payment_request.js", "/assets/vaaman/js/reco.js"]
 
 doctype_js = {
-    "Payment Request": "public/js/payment_request_list.js",
-    "Payment Entry": "public/js/reco.js"
+	"Payment Request": "public/js/payment_request.js",
+	"Payment Entry": "public/js/reco.js",
 }
 
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {"Payment Request": "public/js/payment_request_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -159,26 +156,17 @@ doctype_js = {
 
 
 doc_events = {
-    "Payment Entry": {
-        "on_submit": "vaaman.payment_request.update_all_linked_payment_requests",
-        "on_cancel": "vaaman.payment_request.update_all_linked_payment_requests"
-    },
-    # Optional if you want auto status update on edit of Payment Request
-    "Payment Request": {
-        "on_update": "vaaman.payment_request.update_status_db"
-    }
+	"Payment Entry": {
+		"on_submit": "vaaman.payment_request.update_all_linked_payment_requests",
+		"on_cancel": "vaaman.payment_request.update_all_linked_payment_requests",
+	},
+	# Optional if you want auto status update on edit of Payment Request
+	"Payment Request": {"on_update": "vaaman.payment_request.update_status_db"},
 }
 
 
 # Optional fallback to resync everything every 30 mins
-scheduler_events = {
-    "cron": {
-        "* * * * *": [
-            "vaaman.payment_request.sync_all_payment_requests"
-        ]
-    }
-}
-
+scheduler_events = {"cron": {"* * * * *": ["vaaman.payment_request.sync_all_payment_requests"]}}
 
 
 # Scheduled Tasks
@@ -277,4 +265,3 @@ scheduler_events = {
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-
