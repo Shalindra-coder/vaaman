@@ -166,7 +166,7 @@ doc_events = {
 
 
 # Optional fallback to resync everything every 30 mins
-scheduler_events = {"cron": {"* * * * *": ["vaaman.payment_request.sync_all_payment_requests"]}}
+# scheduler_events = {"cron": {"* * * * *": ["vaaman.payment_request.sync_all_payment_requests"]}}
 
 
 # Scheduled Tasks
