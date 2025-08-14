@@ -54,6 +54,8 @@ doctype_js = {
 }
 
 doctype_list_js = {"Payment Request": "public/js/payment_request_list.js"}
+
+
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -166,7 +168,7 @@ doc_events = {
 
 
 # Optional fallback to resync everything every 30 mins
-scheduler_events = {"cron": {"* * * * *": ["vaaman.payment_request.sync_all_payment_requests"]}}
+# scheduler_events = {"cron": {"* * * * *": ["vaaman.payment_request.sync_all_payment_requests"]}}
 
 
 # Scheduled Tasks
@@ -265,3 +267,25 @@ scheduler_events = {"cron": {"* * * * *": ["vaaman.payment_request.sync_all_paym
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+
+
+fixtures = [
+	{
+		"dt": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Request for Quotation-custom_terms_and_conditions",
+					"Supplier Quotation-custom_freight_",
+					"Supplier Quotation-custom_gst_",
+					"Supplier Quotation-custom_payment_schedule",
+					"Supplier Quotation-custom_payment_term_template",
+					"Supplier Quotation Item-custom_discount_amount_rfq",
+					"Payment Request-workflow_state",
+				],
+			]
+		],
+	}
+]
