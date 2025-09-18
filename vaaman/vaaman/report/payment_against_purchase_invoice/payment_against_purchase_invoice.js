@@ -3,7 +3,19 @@
 
 frappe.query_reports["Payment Against Purchase Invoice"] = {
 	"filters": [
-     {
+        {
+            "fieldname":"from_date",
+            "label": "From Date",
+            "fieldtype": "Date",
+            "default": frappe.datetime.add_months(frappe.datetime.get_today(), -1) // last 1 month
+        },
+        {
+            "fieldname":"to_date",
+            "label": "To Date",
+            "fieldtype": "Date",
+            "default": frappe.datetime.get_today()
+        },
+        {
             "fieldname":"supplier",
             "label": "Supplier",
             "fieldtype": "Link",

@@ -1,9 +1,3 @@
-# Copyright (c) 2025, Pratul Tiwari and contributors
-# For license information, please see license.txt
-
-# import frappe
-
-
 import frappe
 
 def execute(filters=None):
@@ -39,6 +33,15 @@ def execute(filters=None):
         conditions.append("pe.name = %(payment_entry)s")
         values["payment_entry"] = filters.get("payment_entry")
 
+    # ✅ Add From Date and To Date filters (based on Purchase Invoice Posting Date)
+    if filters.get("from_date"):
+        conditions.append("pi.posting_date >= %(from_date)s")
+        values["from_date"] = filters.get("from_date")
+
+    if filters.get("to_date"):
+        conditions.append("pi.posting_date <= %(to_date)s")
+        values["to_date"] = filters.get("to_date")
+
     sql_query = """
         SELECT
             per.reference_name AS purchase_invoice,
@@ -66,4 +69,3 @@ def execute(filters=None):
     data = frappe.db.sql(sql_query, values, as_dict=True)
 
     return columns, data
-
