@@ -1,0 +1,39 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2025-09-19 13:23:55.663629",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "idx": 0,
+ "is_standard": "Yes",
+ "json": "{}",
+ "letter_head": "FMG",
+ "letterhead": null,
+ "modified": "2025-09-19 13:24:33.789337",
+ "modified_by": "Administrator",
+ "module": "Vaaman",
+ "name": "Material To Payment Report",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Material Request",
+ "report_name": "Material To Payment Report",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "Purchase Manager"
+  },
+  {
+   "role": "Stock Manager"
+  },
+  {
+   "role": "Stock User"
+  },
+  {
+   "role": "Purchase User"
+  }
+ ],
+ "timeout": 0
+}
