@@ -183,7 +183,7 @@ rfq = class rfq {
 	}
 
 	submit_rfq() {
-		$('.btn-sm').click(function () {
+		$('.btn-lg').click(function () {
 			var me = this;
 
 			// 1️⃣ Collect item details
@@ -253,7 +253,7 @@ rfq = class rfq {
 					callback: function (r) {
 						frappe.unfreeze();
 						if (r.message) {
-							$('.btn-sm').hide();
+							$('.btn-lg').hide();
 							window.location.href = "/supplier-quotations/" + encodeURIComponent(r.message);
 						}
 					}
@@ -388,4 +388,5 @@ rfq = class rfq {
 	get_final_amount(){
 		return doc.grand_total_with_tax || doc.grand_total || 0;
 	}
+
 };
