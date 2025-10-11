@@ -151,30 +151,41 @@ rfq = class rfq {
 	}
 
 	// NEW: Calculate grand total with GST and freight charges applied to the total
-	calculate_grand_total_with_tax() {
-		let net_total = doc.grand_total || 0;
-		let gst_percentage = doc.gst_percentage || 0;
-		let freight_percentage = doc.freight_percentage || 0;
+calculate_grand_total_with_tax() {
+  let net_total = doc.grand_total || 0;
+  let gst_percentage = doc.gst_percentage || 0;
+  let freight_percentage = doc.freight_percentage || 0;
 
-		// Calculate GST amount on net total
-		let gst_amount = (net_total * gst_percentage) / 100;
+  // ADD THESE LOGS HERE:
+  console.log('=== JS calculate_grand_total_with_tax Triggered ===');
+  console.log('Net Total (JS):', net_total);
+  console.log('Doc GST Percentage:', gst_percentage);
+  console.log('Doc Freight Percentage:', freight_percentage);
 
-		// Calculate freight amount on (net total + GST)
-		let total_with_gst = net_total + gst_amount;
-		let freight_amount = (total_with_gst * freight_percentage) / 100;
+  // Calculate GST amount on net total
+  let gst_amount = (net_total * gst_percentage) / 100;
 
-		// Calculate final grand total
-		let grand_total_with_tax = total_with_gst + freight_amount;
+  // Calculate freight amount on (net total + GST)
+  let total_with_gst = net_total + gst_amount;
+  let freight_amount = (net_total * freight_percentage) / 100;
 
-		// Store values for later use
-		doc.gst_amount = gst_amount;
-		doc.freight_amount = freight_amount;
-		doc.grand_total_with_tax = grand_total_with_tax;
+  // ADD THESE LOGS HERE:
+  console.log('GST Amount (JS):', gst_amount);
+  console.log('Freight Amount (JS):', freight_amount);
 
-		// Update the display field
-		$('#grand_total_with_tax').val(format_number(grand_total_with_tax, doc.number_format, 2));
+  // Calculate final grand total
+  let grand_total_with_tax = total_with_gst + freight_amount;
+  // ADD THIS LOG HERE:
+  console.log('Grand Total with Tax (JS):', grand_total_with_tax);
 
-	}
+  // Store values for later use
+  doc.gst_amount = gst_amount;
+  doc.freight_amount = freight_amount;
+  doc.grand_total_with_tax = grand_total_with_tax;
+
+  // Update the display field
+  $('#grand_total_with_tax').val(format_number(grand_total_with_tax, doc.number_format, 2));
+}
 
 	terms(){
 		$(".terms").on("change", ".terms-feedback", function(){
@@ -183,116 +194,168 @@ rfq = class rfq {
 	}
 
 	submit_rfq() {
-		$('.btn-sm').click(function () {
-			var me = this;
+    $('.btn-lg').click(function () {
+        var me = this;
+        var $btn = $(me);  // Cache for easier manipulation
 
-			// 1️⃣ Collect item details
-			let item_details = [];
-			doc.items.forEach(function (item) {
-				let rate = parseFloat(
-					$(repl('.rfq-rate[data-idx=%(idx)s]', { 'idx': item.idx })).val().replace(/,/g, '')
-				) || 0;
-				let qty = parseFloat(item.qty) || 0;
-				let discount = parseFloat(
-					$(repl('.rfq-discount[data-idx=%(idx)s]', { 'idx': item.idx })).val()
-				) || 0;
-				let amount = parseFloat(item.base_amount) || 0;
+        try {
+            // Disable button and show loading state
+            $btn.prop('disabled', true)
+                .html('<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...');  // Use .html() for icon
 
-				item_details.push({
-					item_name: item.item_name,
-					item_code: item.item_code,
-					rate: rate,
-					qty: qty,
-					custom_discount_: discount,
-					amount: amount,
-					warehouse: item.warehouse
-				});
-			});
+            console.log('Submit clicked - starting process');  // Debug log
 
-			// 2️⃣ Collect payment term data
-			const table = document.getElementById('paymentScheduleTable');
-			const rows = table ? table.querySelectorAll('tbody tr') : [];
-			let payment_term_data = [];
-			rows.forEach(row => {
-				const cells = row.querySelectorAll('td');
-					payment_term_data.push({
-						paymentTerm: cells[0].textContent,
-						description: cells[1].textContent,
-						dueDate: cells[2].querySelector('input').value,
-						percentage: cells[3].textContent,
-						amount: cells[4].textContent
-					});
+            // 1️⃣ Collect item details
+            let item_details = [];
+            doc.items.forEach(function (item) {
+                let rate = parseFloat(
+                    $(repl('.rfq-rate[data-idx=%(idx)s]', { 'idx': item.idx })).val().replace(/,/g, '')
+                ) || 0;
+                let qty = parseFloat(item.qty) || 0;
+                let discount = parseFloat(
+                    $(repl('.rfq-discount[data-idx=%(idx)s]', { 'idx': item.idx })).val()
+                ) || 0;
+                let amount = parseFloat(item.base_amount) || 0;
 
-			});
+                item_details.push({
+                    item_name: item.item_name,
+                    item_code: item.item_code,
+                    rate: rate,
+                    qty: qty,
+                    custom_discount_: discount,
+                    amount: amount,
+                    warehouse: item.warehouse
+                });
+            });
 
-			// 3️⃣ Collect all form data
-			let gstValue = $('#gst_percentage').val() || 0;
-			let freightValue = $('#freight_percentage').val() || 0;
-			let payment_terms_template = $('#payment_terms_template option:selected').text();
-			let Encoterm = $('#encoterm_template option:selected').text();
-			let document_notes = $('#document_notes').val() || '';
-			let additional_notes = $('#additional_notes').val() || '';
+            // 2️⃣ Collect payment term data
+            const table = document.getElementById('paymentScheduleTable');
+            const rows = table ? table.querySelectorAll('tbody tr') : [];
+            let payment_term_data = [];
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 5) {  // Safety check
+                    payment_term_data.push({
+                        paymentTerm: cells[0].textContent,
+                        description: cells[1].textContent,
+                        dueDate: cells[2].querySelector('input')?.value || '',
+                        percentage: cells[3].textContent,
+                        amount: cells[4].textContent
+                    });
+                }
+            });
 
-			// 4️⃣ File handling - Updated to use new field ID
-			let fileInput = document.getElementById('document_attachment');
-			let file = fileInput ? fileInput.files[0] : null;
+            // 3️⃣ Collect all form data
+            let gstValue = $('#gst_percentage').val() || 0;
+            let freightValue = $('#freight_percentage').val() || 0;
+            let payment_terms_template = $('#payment_terms_template option:selected').text() || '';
+            let Encoterm = $('#encoterm_template option:selected').text() || '';
+            let document_notes = $('#document_notes').val() || '';
+            let additional_notes = $('#additional_notes').val() || '';
 
-			// Function to submit to Frappe
-			function submitToFrappe(other_details) {
-				frappe.freeze();
-				frappe.call({
-					type: "POST",
-					method: "vaaman.api.create_supplier_quotation",
-					args: {
-						doc: doc,
-						item_details: item_details,
-						payment_term_data: payment_term_data,
-						other_details: other_details
-					},
-					btn: me,
-					callback: function (r) {
-						frappe.unfreeze();
-						if (r.message) {
-							$('.btn-sm').hide();
-							window.location.href = "/supplier-quotations/" + encodeURIComponent(r.message);
-						}
-					}
-				});
-			}
+            // 4️⃣ File handling
+            let fileInput = document.getElementById('document_attachment');
+            let file = fileInput ? fileInput.files[0] : null;
 
-			// 5️⃣ Prepare other details with tax calculations
-			let other_details = {
-				gstValue: gstValue,
-				freightValue: freightValue,
-				payment_terms_template: payment_terms_template,
-				document_notes: document_notes,
-				additional_notes: additional_notes,
-				net_total: doc.grand_total,
-				gst_amount: doc.gst_amount || 0,
-				freight_amount: doc.freight_amount || 0,
-				grand_total_with_tax: doc.grand_total_with_tax || doc.grand_total,
-				attach_file: null,
-				Encoterm:Encoterm
-			};
+            // Function to submit to Frappe
+            function submitToFrappe(other_details) {
+                console.log('Calling API with data:', other_details);  // Debug: Log payload
+                frappe.freeze('Submitting Quotation...');
+                frappe.call({
+                    type: "POST",
+                    method: "vaaman.api.create_supplier_quotation",
+                    args: {
+                        doc: doc,
+                        item_details: JSON.stringify(item_details),  // Ensure JSON strings for arrays
+                        payment_term_data: JSON.stringify(payment_term_data),
+                        other_details: JSON.stringify(other_details)  // Stringify to avoid arg issues
+                    },
+                    btn: me,
+                    callback: function (r) {
+                        console.log('API success:', r);  // Debug
+                        frappe.unfreeze();
+                        if (r.message) {
+                            $btn.hide();
+                            window.location.href = "/supplier-quotations/" + encodeURIComponent(r.message);
+                        } else {
+                            frappe.msgprint(__('Submission failed: No response received.'));
+                            resetButton();
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.log('API error triggered:', error, xhr);  // Debug
+                        frappe.unfreeze();
+                        let errMsg = error || 'Unknown error';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errMsg = xhr.responseJSON.message;  // Parse Frappe error details
+                        }
+                        frappe.msgprint({
+                            title: __('Submission Failed'),
+                            indicator: 'red',
+                            message: __('Error: {0}. Please check your inputs and try again.', [errMsg])
+                        });
+                        // Fallback timeout to ensure reset
+                        setTimeout(resetButton, 1000);
+                    }
+                });
+            }
 
-			// 6️⃣ Read file if exists, then submit
-			if (file) {
-				let reader = new FileReader();
-				reader.onload = function (e) {
-					let base64Data = e.target.result.split(',')[1];
-					other_details.attach_file = {
-						file_name: file.name,
-						content: base64Data
-					};
-					submitToFrappe(other_details);
-				};
-				reader.readAsDataURL(file);
-			} else {
-				submitToFrappe(other_details);
-			}
-		});
-	}
+            // 5️⃣ Prepare other details
+            let other_details = {
+                gstValue: gstValue,
+                freightValue: freightValue,
+                payment_terms_template: payment_terms_template,
+                document_notes: document_notes,
+                additional_notes: additional_notes,
+                net_total: doc.grand_total,
+                gst_amount: doc.gst_amount || 0,
+                freight_amount: doc.freight_amount || 0,
+                grand_total_with_tax: doc.grand_total_with_tax || doc.grand_total,
+                attach_file: null,
+                Encoterm: Encoterm
+            };
 
+            // 6️⃣ Handle file if present
+            if (file) {
+                let reader = new FileReader();
+                reader.onload = function (e) {
+                    let base64Data = e.target.result.split(',')[1];
+                    other_details.attach_file = {
+                        file_name: file.name,
+                        content: base64Data
+                    };
+                    submitToFrappe(other_details);
+                };
+                reader.onerror = function () {
+                    console.log('File read error');  // Debug
+                    frappe.msgprint(__('File read error. Please select a valid file.'));
+                    resetButton();
+                };
+                reader.readAsDataURL(file);
+            } else {
+                submitToFrappe(other_details);
+            }
+
+        } catch (ex) {
+            console.error('Submit handler error:', ex);  // Debug any JS crash
+            frappe.unfreeze();  // Ensure UI unlocks
+            frappe.msgprint({
+                title: __('Submission Failed'),
+                indicator: 'red',
+                message: __('Unexpected error: {0}. Please refresh and try again.', [ex.message])
+            });
+            resetButton();  // Force reset on exception
+        }
+
+        // Helper to reset button state
+        function resetButton() {
+            console.log('Resetting button state');  // Debug: Confirm this fires
+            $btn.prop('disabled', false)
+                .html('<i class="fas fa-paper-plane mr-2"></i>Submit Quotation')  // ✅ Use .html() for icon rendering
+                .removeClass('btn-loading');
+        }
+    });
+}
 	navigate_quotations() {
 		$('.quotations').click(function(){
 			name = $(this).attr('idx');

@@ -2,7 +2,7 @@
 {% from "templates/includes/rfq/rfq_macros.html" import item_name_and_description %}
 
 {% block breadcrumbs %}
-	{% include "templates/includes/breadcrumbs.html" %}
+    {% include "templates/includes/breadcrumbs.html" %}
 {% endblock %}
 
 {% block header_actions %}
@@ -17,73 +17,100 @@
 {% block script %}
 <script>
 {% include "templates/includes/rfq.js" %}
+
 document.addEventListener("DOMContentLoaded", function() {
-    var termsOverlay = document.getElementById("termsOverlay");
-    var agreeBtn = document.getElementById("agreeBtn");
-    var disagreeBtn = document.getElementById("disagreeBtn");
-    var rfqContent = document.getElementById("rfqMainContent");
+  // Terms Popup Logic
+  var termsOverlay = document.getElementById("termsOverlay");
+  var agreeBtn = document.getElementById("agreeBtn");
+  var disagreeBtn = document.getElementById("disagreeBtn");
+  var rfqContent = document.getElementById("rfqMainContent");
 
-    // Force show popup immediately
-    termsOverlay.style.display = "flex";
+  // Force show popup immediately
+  if (termsOverlay) termsOverlay.style.display = "flex";
 
-    // Agree button — show form & load RFQ JS
+  // Agree button — show form & load RFQ JS
+  if (agreeBtn) {
     agreeBtn.addEventListener("click", function() {
-        termsOverlay.style.display = "none";
-        rfqContent.style.display = "block";
-
-        // Dynamically load rfq.js AFTER agree
-        var script = document.createElement("script");
-        script.src = "/assets/erpnext/js/rfq.js";
-        document.body.appendChild(script);
+      if (termsOverlay) termsOverlay.style.display = "none";
+      if (rfqContent) rfqContent.style.display = "block";
+      // Dynamically load rfq.js AFTER agree
+      var script = document.createElement("script");
+      script.src = "/assets/erpnext/js/rfq.js";
+      document.body.appendChild(script);
     });
+  }
 
-    // Disagree button — redirect
+  // Disagree button — redirect
+  if (disagreeBtn) {
     disagreeBtn.addEventListener("click", function() {
-        window.location.href = "/";
+      window.location.href = "/";
     });
+  }
 
-    // Disable closing by clicking outside the box
+  // Prevent closing by outside click
+  if (termsOverlay) {
     termsOverlay.addEventListener("click", function(e) {
-        if (e.target === termsOverlay) {
-            // Do nothing — keeps popup open
-        }
+      if (e.target === termsOverlay) {
+        // Do nothing — keeps popup open
+      }
     });
-});
+  }
 
-const paymentTermsData = {{ payment_terms_template | tojson }}
-
-console.log(paymentTermsData)
-function populatePaymentTerms(data) {
+  // Payment Terms Dropdown
+  const paymentTermsData = {{ payment_terms_template | tojson }};
+  function populatePaymentTerms(data) {
     const selectElement = document.getElementById('payment_terms_template');
-
+    if (!selectElement) return;
     data.forEach(term => {
-        const option = document.createElement('option');
-        option.value = term.name;
-        option.textContent = term.name;
-        selectElement.appendChild(option);
+      const option = document.createElement('option');
+      option.value = term.name;
+      option.textContent = term.name;
+      selectElement.appendChild(option);
     });
+  }
+  populatePaymentTerms(paymentTermsData);
+
+  // Calculation Function
+  function calculateTotals() {
+  // Read and sanitize inputs
+  var taxGrandTotalElem = document.querySelector('.tax-grand-total');
+  var gstElem = document.getElementById('gst_percentage');
+  var freightElem = document.getElementById('freight_percentage');
+  var grandTotalElem = document.getElementById('grand_total_with_tax');
+
+  var netTotal = taxGrandTotalElem ? parseFloat(taxGrandTotalElem.textContent.trim() || "0") : 0;
+  var gstPercent = gstElem ? parseFloat(gstElem.value.trim() || "0") : 0;
+  var freightPercent = freightElem ? parseFloat(freightElem.value.trim() || "0") : 0;
+
+  // ADD THESE LOGS HERE:
+  console.log('=== HTML calculateTotals Triggered ===');
+  console.log('Net Total:', netTotal);
+  console.log('GST Input Value:', gstElem ? gstElem.value : 'Element not found');
+  console.log('GST Percent Parsed:', gstPercent);
+  console.log('Freight Input Value:', freightElem ? freightElem.value : 'Element not found');
+  console.log('Freight Percent Parsed:', freightPercent);
+
+  var gstAmount = (netTotal * gstPercent) / 100;
+  var freightAmount = (netTotal * freightPercent) / 100;
+  // ADD THESE LOGS HERE:
+  console.log('GST Amount Calculated:', gstAmount);
+  console.log('Freight Amount Calculated:', freightAmount);
+
+  var grandTotal = netTotal + gstAmount + freightAmount;
+  // ADD THIS LOG HERE:
+  console.log('Grand Total (HTML):', grandTotal);
+
+  if (grandTotalElem) grandTotalElem.value = grandTotal.toFixed(2);
 }
 
-// Call the function with your data
-populatePaymentTerms(paymentTermsData);
+  // Event Listeners for Calculation
+  var gstElem = document.getElementById('gst_percentage');
+  var freightElem = document.getElementById('freight_percentage');
+  if (gstElem) gstElem.addEventListener('input', calculateTotals);
+  if (freightElem) freightElem.addEventListener('input', calculateTotals);
 
-// Calculate totals function
-function calculateTotals() {
-    const netTotal = parseFloat(document.querySelector('.tax-grand-total').textContent) || 0;
-    const gstPercent = parseFloat(document.getElementById('gst_percentage').value) || 0;
-    const freightPercent = parseFloat(document.getElementById('freight_percentage').value) || 0;
-
-    const gstAmount = (netTotal * gstPercent) / 100;
-    const freightAmount = (netTotal * freightPercent) / 100;
-    const grandTotal = netTotal + gstAmount + freightAmount;
-
-    document.getElementById('grand_total_with_tax').value = grandTotal.toFixed(2);
-}
-
-// Add event listeners for calculation
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('gst_percentage').addEventListener('input', calculateTotals);
-    document.getElementById('freight_percentage').addEventListener('input', calculateTotals);
+  // Calculate once after page loads
+  calculateTotals();
 });
 </script>
 {% endblock %}
@@ -91,164 +118,29 @@ document.addEventListener('DOMContentLoaded', function() {
 {% block page_content %}
 <style>
     /* Enhanced UI Styles */
-    .section-card {
-        background: #fff;
-        border: 1px solid #e3e6f0;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 2rem;
-        overflow: hidden;
-    }
-
-    .section-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 1rem 1.5rem;
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin: 0;
-    }
-
-    .section-content {
-        padding: 1.5rem;
-    }
-
-    .form-group {
-        margin-bottom: 1rem;
-    }
-
-    .form-group label {
-        font-weight: 500;
-        color: #5a5c69;
-        font-size: 0.875rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .form-control {
-        border: 1px solid #d1d3e2;
-        border-radius: 6px;
-        padding: 0.75rem;
-        font-size: 0.875rem;
-        transition: all 0.15s ease-in-out;
-    }
-
-    .form-control:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
-    }
-
-    .row-equal-height {
-        display: flex;
-        align-items: stretch;
-    }
-
-    .row-equal-height .col-6 {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .total-display {
-        background: #f8f9fc;
-        border: 1px solid #e3e6f0;
-        border-radius: 6px;
-        padding: 0.75rem;
-        font-weight: 600;
-        color: #5a5c69;
-        text-align: right;
-    }
-
-    /* Payment Schedule Styles */
-    .payment-schedule-container {
-        margin-top: 1rem;
-        width: 100%;
-    }
-
-    .payment-schedule-container .table-title {
-        font-weight: 500;
-        margin-bottom: 8px;
-        color: #5a5c69;
-    }
-
-    .payment-schedule-table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-        font-size: 14px;
-        border-radius: 6px;
-        overflow: hidden;
-    }
-
-    .payment-schedule-table thead th {
-        background-color: #f8f9fa;
-        font-weight: 500;
-        padding: 12px;
-        border: 1px solid #dee2e6;
-        text-align: left;
-        white-space: nowrap;
-        color: #5a5c69;
-    }
-
-    .payment-schedule-table tbody td {
-        padding: 12px;
-        border: 1px solid #dee2e6;
-        vertical-align: middle;
-    }
-
-    .payment-schedule-table th.text-right,
-    .payment-schedule-table td.text-right {
-        text-align: right;
-    }
-
-    .payment-schedule-table tbody tr:hover {
-        background-color: #f1f3f5;
-    }
-
-    /* File Upload Styles */
-    .file-upload-wrapper {
-        position: relative;
-        display: inline-block;
-        width: 100%;
-    }
-
-    .file-upload-input {
-        width: 100%;
-        padding: 0.75rem;
-        border: 2px dashed #d1d3e2;
-        border-radius: 6px;
-        background: #f8f9fc;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .file-upload-input:hover {
-        border-color: #667eea;
-        background: #f0f2ff;
-    }
-
-    /* Responsive Design */
-    @media (max-width: 768px) {
-        .row-equal-height {
-            display: block;
-        }
-
-        .section-content {
-            padding: 1rem;
-        }
-    }
-
-    /* Enhanced button styles */
-    .btn-primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        border-radius: 6px;
-        padding: 0.75rem 1.5rem;
-        font-weight: 500;
-    }
-
-    .btn-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
+    .section-card { background: #fff; border: 1px solid #e3e6f0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; overflow: hidden; }
+    .section-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 1.5rem; font-size: 1.1rem; font-weight: 600; margin: 0; }
+    .section-content { padding: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { font-weight: 500; color: #5a5c69; font-size: 0.875rem; margin-bottom: 0.5rem; }
+    .form-control { border: 1px solid #d1d3e2; border-radius: 6px; padding: 0.75rem; font-size: 0.875rem; transition: all 0.15s ease-in-out; }
+    .form-control:focus { border-color: #667eea; box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25); }
+    .row-equal-height { display: flex; align-items: stretch; }
+    .row-equal-height .col-6 { display: flex; flex-direction: column; }
+    .total-display { background: #f8f9fc; border: 1px solid #e3e6f0; border-radius: 6px; padding: 0.75rem; font-weight: 600; color: #5a5c69; text-align: right; }
+    .payment-schedule-container { margin-top: 1rem; width: 100%; }
+    .payment-schedule-container .table-title { font-weight: 500; margin-bottom: 8px; color: #5a5c69; }
+    .payment-schedule-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; border-radius: 6px; overflow: hidden; }
+    .payment-schedule-table thead th { background-color: #f8f9fa; font-weight: 500; padding: 12px; border: 1px solid #dee2e6; text-align: left; white-space: nowrap; color: #5a5c69; }
+    .payment-schedule-table tbody td { padding: 12px; border: 1px solid #dee2e6; vertical-align: middle; }
+    .payment-schedule-table th.text-right, .payment-schedule-table td.text-right { text-align: right; }
+    .payment-schedule-table tbody tr:hover { background-color: #f1f3f5; }
+    .file-upload-wrapper { position: relative; display: inline-block; width: 100%; }
+    .file-upload-input { width: 100%; padding: 0.75rem; border: 2px dashed #d1d3e2; border-radius: 6px; background: #f8f9fc; cursor: pointer; transition: all 0.3s ease; }
+    .file-upload-input:hover { border-color: #667eea; background: #f0f2ff; }
+    @media (max-width: 768px) { .row-equal-height { display: block; } .section-content { padding: 1rem; } }
+    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 6px; padding: 0.75rem 1.5rem; font-weight: 500; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
 </style>
 
 <!-- Terms & Conditions Overlay -->
@@ -404,7 +296,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         </select>
                     </div>
                 </div>
-
                 <div class="col-md-6">
                     <div class="form-group">
                         <label for="Encoter">
@@ -480,7 +371,6 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
     </div>
-
 
     <!-- Quotations Section -->
     <div class="section-card">

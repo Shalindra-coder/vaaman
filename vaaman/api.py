@@ -183,97 +183,132 @@ def bulk_make_draft_payment_entries(payment_requests):
 	}
 
 
+
+
+import base64
+import json
+import frappe
+from frappe.utils import flt
+from frappe.utils.file_manager import save_file
+
 @frappe.whitelist()
 def create_supplier_quotation(**kwargs):
-	data = json.loads(kwargs.get("doc"))
-	item_data = json.loads(kwargs.get("item_details"))
-	payment_term_data = json.loads(kwargs.get("payment_term_data"))
-	other_details = json.loads(kwargs.get("other_details"))
+    data = json.loads(kwargs.get("doc", "{}"))
+    item_data = json.loads(kwargs.get("item_details", "[]"))
+    payment_term_data = json.loads(kwargs.get("payment_term_data", "[]"))
+    other_details = json.loads(kwargs.get("other_details", "{}"))
 
-	sq = frappe.new_doc("Supplier Quotation")
-	sq.supplier = data.get("supplier")
-	sq.terms = data.get("terms")
-	sq.company = data.get("company")
-	sq.currency = data.get("currency")
+    sq = frappe.new_doc("Supplier Quotation")
+    sq.supplier = data.get("supplier")
+    sq.terms = data.get("terms")
+    sq.company = data.get("company")
+    sq.currency = data.get("currency")
 
-	total_amount = 0
+    # Append items (let ERPNext compute totals)
+    for value in item_data:
+        sq.append(
+            "items",
+            {
+                "item_code": value.get("item_code"),
+                "qty": flt(value.get("qty", 0)),
+                "discount_percentage": flt(value.get("custom_discount_", 0)),
+                "warehouse": value.get("warehouse"),
+                "rate": flt(value.get("rate", 0)),  # Unit rate
+                "price_list_rate": flt(value.get("rate", 0)),  # Assuming input is price list rate
+                "request_for_quotation": data.get("name"),
+            },
+        )
 
-	for value in item_data:
-		sq.append(
-			"items",
-			{
-				"item_code": value["item_code"],
-				"qty": value["qty"],
-				"discount_percentage": value["custom_discount_"],
-				"warehouse": value["warehouse"],
-				"rate": value["amount"],
-				"amount": value["amount"],
-				"price_list_rate": value["rate"],
-				"base_rate": value["amount"],
-				"base_amount": value["amount"],
-				"net_rate": value["amount"],
-				"request_for_quotation": data.get("name"),
-			},
-		)
-		total_amount += value["amount"]
+    # Get tax account head
+    account_head = frappe.db.get_value(
+        "Account",
+        {
+            "company": data.get("company"),
+            "account_type": "Tax",
+            "is_group": 0,
+        },
+        "name",
+    )
+    if not account_head:
+        account_head = frappe.get_cached_value("Company", data.get("company"), "default_tax_account")
+        if not account_head:
+            frappe.throw("No valid tax account found for company")
 
-	if other_details.get("payment_terms_template") != "Select Payment Terms":
-		sq.custom_payment_term_template = other_details.get("payment_terms_template")
-		for terms in payment_term_data:
-			sq.append(
-				"custom_payment_schedule",
-				{
-					"payment_term": terms["paymentTerm"],
-					"invoice_portion": float(terms["percentage"].replace("%", "").strip()),
-					"due_date": terms["dueDate"] or "",
-					"payment_amount": terms["amount"],
-				},
-			)
+    # Freight account (separate Expense type; ensure exists)
+    freight_account = "Freight and Forwarding Charges - VEIL"
+    if not frappe.db.exists("Account", freight_account):
+        frappe.throw(f"Freight account '{freight_account}' not found—create it as Expense type")
 
-	sq.custom_gst_ = other_details["gstValue"]
-	sq.custom_freight_ = other_details["freightValue"]
+    gst_rate = flt(other_details.get("gstValue", 0))
+    freight_rate = flt(other_details.get("freightValue", 0))
 
-	if other_details["Encoterm"] != "Incoterm":
-		sq.incoterm = other_details["Encoterm"]
+    # Append GST if >0 (on Net Total)
+    if gst_rate > 0:
+        sq.append(
+            "taxes",
+            {
+                "charge_type": "On Net Total",
+                "account_head":"GST Expense - VEIL",
+                "rate": gst_rate,
+                "description": "GST Rate",
+            },
+        )
 
-	sq.status = "Draft"
+    # Append freight only if >0 (independent, on Net Total)
+    if freight_rate > 0:
+        sq.append(
+            "taxes",
+            {
+                "charge_type": "On Net Total",  # Or "On Previous Row Total" + "row_id": 1 for after GST
+                "account_head": freight_account,
+                "rate": freight_rate,
+                "description": "Freight Charges",
+            },
+        )
 
-	account_head = frappe.db.get_value("Account", {"company": data.get("company")}, "name")
+    # Set custom fields
+    sq.custom_gst_ = gst_rate
+    sq.custom_freight_ = freight_rate
 
-	sq.run_method("set_missing_values")
-	sq.save()
-	sq.append(
-		"taxes",
-		{
-			"charge_type": "On Net Total",
-			"account_head": account_head,
-			"rate": other_details["gstValue"],
-			"description": "GST Rate",
-		},
-	)
-	sq.append(
-		"taxes",
-		{
-			"charge_type": "On Previous Row Total",
-			"account_head": account_head,
-			"rate": other_details["gstValue"],
-			"description": "Freight Rate",
-			"row_id": 1,
-		},
-	)
-	sq.save()
-	sq.submit()
+    # Incoterm
+    encoterm = other_details.get("Encoterm")
+    if encoterm and encoterm != "Incoterm":
+        sq.incoterm = encoterm
 
-	attach_file = other_details.get("attach_file")
-	if attach_file and attach_file.get("content"):
-		file_name = attach_file.get("file_name")
-		file_content = base64.b64decode(attach_file.get("content"))
-		save_file(file_name, file_content, sq.doctype, sq.name, is_private=1)
+    # Payment terms/schedule
+    payment_template = other_details.get("payment_terms_template")
+    if payment_template:
+        sq.custom_payment_term_template = payment_template
+        for terms in payment_term_data:
+            sq.append(
+                "custom_payment_schedule",
+                {
+                    "payment_term": terms.get("paymentTerm"),
+                    "description": terms.get("description"),
+                    "due_date": terms.get("dueDate"),
+                    "invoice_portion": flt(terms.get("percentage", "").replace("%", "").strip()),
+                    "payment_amount": flt(terms.get("amount", "").replace(",", "").strip()),
+                },
+            )
 
-	frappe.db.commit()
+    # Auto-fill, save, and submit
+    sq.run_method("set_missing_values")
+    # sq.taxes_and_charges = "Manual"  # For custom taxes
+    sq.save(ignore_permissions=True)
+    sq.submit()
 
-	return sq.name
+    # Attach file
+    attach_file = other_details.get("attach_file")
+    if attach_file and attach_file.get("content"):
+        try:
+            file_name = attach_file.get("file_name")
+            file_content = base64.b64decode(attach_file.get("content"))
+            save_file(file_name, file_content, sq.doctype, sq.name, is_private=1)
+        except Exception as e:
+            frappe.log_error(f"File attachment failed for SQ {sq.name}: {str(e)}")
 
+    frappe.db.commit()
+    return sq.name
 
 @frappe.whitelist()
 def get_payment_schedule(template_name):
