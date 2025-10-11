@@ -194,9 +194,14 @@ calculate_grand_total_with_tax() {
 	}
 
 	submit_rfq() {
+<<<<<<< HEAD
     $('.btn-lg').click(function () {
         var me = this;
         var $btn = $(me);  // Cache for easier manipulation
+=======
+		$('.btn-lg').click(function () {
+			var me = this;
+>>>>>>> b8a4e87ac55288e1036a2a4255d1feeb4e94066d
 
         try {
             // Disable button and show loading state
@@ -253,9 +258,34 @@ calculate_grand_total_with_tax() {
             let document_notes = $('#document_notes').val() || '';
             let additional_notes = $('#additional_notes').val() || '';
 
+<<<<<<< HEAD
             // 4️⃣ File handling
             let fileInput = document.getElementById('document_attachment');
             let file = fileInput ? fileInput.files[0] : null;
+=======
+			// Function to submit to Frappe
+			function submitToFrappe(other_details) {
+				frappe.freeze();
+				frappe.call({
+					type: "POST",
+					method: "vaaman.api.create_supplier_quotation",
+					args: {
+						doc: doc,
+						item_details: item_details,
+						payment_term_data: payment_term_data,
+						other_details: other_details
+					},
+					btn: me,
+					callback: function (r) {
+						frappe.unfreeze();
+						if (r.message) {
+							$('.btn-lg').hide();
+							window.location.href = "/supplier-quotations/" + encodeURIComponent(r.message);
+						}
+					}
+				});
+			}
+>>>>>>> b8a4e87ac55288e1036a2a4255d1feeb4e94066d
 
             // Function to submit to Frappe
             function submitToFrappe(other_details) {
@@ -451,4 +481,5 @@ calculate_grand_total_with_tax() {
 	get_final_amount(){
 		return doc.grand_total_with_tax || doc.grand_total || 0;
 	}
+
 };
