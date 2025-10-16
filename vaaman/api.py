@@ -234,8 +234,10 @@ def create_supplier_quotation(**kwargs):
         if not account_head:
             frappe.throw("No valid tax account found for company")
 
-    # Freight account (separate Expense type; ensure exists)
+    # freight_account = "Freight Charges - VD"
+
     freight_account = "Freight and Forwarding Charges - VEIL"
+    # account_head = "GST Expense - VEIL"
     if not frappe.db.exists("Account", freight_account):
         frappe.throw(f"Freight account '{freight_account}' not found—create it as Expense type")
 
