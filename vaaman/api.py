@@ -213,7 +213,7 @@ def create_supplier_quotation(**kwargs):
                 "qty": flt(value.get("qty", 0)),
                 "discount_percentage": flt(value.get("custom_discount_", 0)),
                 "warehouse": value.get("warehouse"),
-                "rate": flt(value.get("rate", 0)),  # Unit rate
+                # "rate": flt(value.get("rate", 0)),  # Unit rate
                 "price_list_rate": flt(value.get("rate", 0)),  # Assuming input is price list rate
                 "request_for_quotation": data.get("name"),
             },
