@@ -211,7 +211,9 @@ calculate_grand_total_with_tax() {
                 let rate = parseFloat(
                     $(repl('.rfq-rate[data-idx=%(idx)s]', { 'idx': item.idx })).val().replace(/,/g, '')
                 ) || 0;
-                let qty = parseFloat(item.qty) || 0;
+                let qty = parseFloat(
+                    $(repl('.rfq-qty[data-idx=%(idx)s]', { 'idx': item.idx })).val().replace(/,/g, '')
+                ) || 0;
                 let discount = parseFloat(
                     $(repl('.rfq-discount[data-idx=%(idx)s]', { 'idx': item.idx })).val()
                 ) || 0;
