@@ -1,0 +1,29 @@
+{
+ "cards": [],
+ "charts": [
+  {
+   "chart": "Requests by Department",
+   "width": "Full"
+  },
+  {
+   "chart": "Item Requests Over Time",
+   "width": "Full"
+  },
+  {
+   "chart": "Item Requests by Status",
+   "width": "Full"
+  }
+ ],
+ "creation": "2025-10-30 21:39:36.842371",
+ "dashboard_name": "Item Request Dashboard",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2025-10-30 21:39:36.842371",
+ "modified_by": "Administrator",
+ "module": "Vaaman",
+ "name": "Item Request Dashboard",
+ "owner": "Administrator"
+}

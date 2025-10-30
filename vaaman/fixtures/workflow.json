@@ -58,7 +58,7 @@
     "action": "Submit",
     "next_state": "Pending Codification",
     "allowed": "Store User",
-    "allow_self_approval": 0
+    "allow_self_approval": 1
    },
    {
     "doctype": "Workflow Transition",
@@ -66,8 +66,8 @@
     "action": "Add Code",
     "next_state": "Pending Approval",
     "allowed": "Codification User",
-    "allow_self_approval": 0,
-    "condition": "doc.generated_code"
+    "allow_self_approval": 1,
+    "condition": "doc.items_with_code > 0"
    },
    {
     "doctype": "Workflow Transition",
@@ -75,7 +75,7 @@
     "action": "Approve",
     "next_state": "Approved",
     "allowed": "Item Manager",
-    "allow_self_approval": 0
+    "allow_self_approval": 1
    },
    {
     "doctype": "Workflow Transition",
@@ -83,7 +83,7 @@
     "action": "Reject",
     "next_state": "Rejected",
     "allowed": "Item Manager",
-    "allow_self_approval": 0
+    "allow_self_approval": 1
    }
   ]
  }

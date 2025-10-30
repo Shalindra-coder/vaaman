@@ -1,0 +1,23 @@
+{
+ "name": "Item Requests by Status",
+ "chart_name": "Item Requests by Status",
+ "chart_type": "Group By",
+ "doctype": "Chart",
+ "document_type": "Item Code Request",
+ "filters_json": "[]",
+ "group_by_type": "Count",
+ "group_by_based_on": "workflow_state",
+ "is_public": 1,
+ "is_standard": 1,
+ "module": "Store Management",
+ "number_of_groups": 0,
+ "owner": "Administrator",
+ "time_interval": "Monthly",
+ "timespan": "Last Year",
+ "type": "Bar",
+ "use_report_chart": 0,
+ "y_axis": []
+}
+
+
+
