@@ -1,0 +1,91 @@
+[
+ {
+  "doctype": "Workflow",
+  "name": "Item Code Request Workflow",
+  "workflow_name": "Item Code Request Workflow",
+  "document_type": "Item Code Request",
+  "is_active": 1,
+  "send_email_alert": 0,
+  "workflow_state_field": "workflow_state",
+  "states": [
+   {
+    "doctype": "Workflow Document State",
+    "state": "Draft",
+    "doc_status": "0",
+    "allow_edit": "Store User",
+    "update_field": "workflow_state",
+    "update_value": "Draft"
+   },
+   {
+    "doctype": "Workflow Document State",
+    "state": "Pending Codification",
+    "doc_status": "1",
+    "allow_edit": "Codification User",
+    "update_field": "workflow_state",
+    "update_value": "Pending Codification"
+   },
+   {
+    "doctype": "Workflow Document State",
+    "state": "Pending Approval",
+    "doc_status": "1",
+    "allow_edit": "Item Manager",
+    "update_field": "workflow_state",
+    "update_value": "Pending Approval"
+   },
+   {
+    "doctype": "Workflow Document State",
+    "state": "Approved",
+    "doc_status": "1",
+    "allow_edit": "Item Manager",
+    "is_optional_state": 0,
+    "update_field": "workflow_state",
+    "update_value": "Approved"
+   },
+   {
+    "doctype": "Workflow Document State",
+    "state": "Rejected",
+    "doc_status": "2",
+    "allow_edit": "Item Manager",
+    "is_optional_state": 0,
+    "update_field": "workflow_state",
+    "update_value": "Rejected"
+   }
+  ],
+  "transitions": [
+   {
+    "doctype": "Workflow Transition",
+    "state": "Draft",
+    "action": "Submit",
+    "next_state": "Pending Codification",
+    "allowed": "Store User",
+    "allow_self_approval": 0
+   },
+   {
+    "doctype": "Workflow Transition",
+    "state": "Pending Codification",
+    "action": "Add Code",
+    "next_state": "Pending Approval",
+    "allowed": "Codification User",
+    "allow_self_approval": 0,
+    "condition": "doc.generated_code"
+   },
+   {
+    "doctype": "Workflow Transition",
+    "state": "Pending Approval",
+    "action": "Approve",
+    "next_state": "Approved",
+    "allowed": "Item Manager",
+    "allow_self_approval": 0
+   },
+   {
+    "doctype": "Workflow Transition",
+    "state": "Pending Approval",
+    "action": "Reject",
+    "next_state": "Rejected",
+    "allowed": "Item Manager",
+    "allow_self_approval": 0
+   }
+  ]
+ }
+]
+

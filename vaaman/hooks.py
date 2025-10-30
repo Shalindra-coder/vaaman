@@ -164,6 +164,10 @@ doc_events = {
 	},
 	# Optional if you want auto status update on edit of Payment Request
 	"Payment Request": {"on_update": "vaaman.payment_request.update_status_db"},
+	"Item Code Request": {
+		"on_submit": "vaaman.store_management.doctype.item_code_request.item_code_request.on_submit_hook",
+		"on_update_after_submit": "vaaman.store_management.doctype.item_code_request.item_code_request.on_update_after_submit_hook",
+	},
 }
 
 
@@ -288,4 +292,7 @@ fixtures = [
 			]
 		],
 	}
+	# Workflow fixtures will be installed manually after roles are created
+	# "vaaman/fixtures/workflow_state.json",
+	# "vaaman/fixtures/workflow.json"
 ]
