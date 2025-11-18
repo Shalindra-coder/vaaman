@@ -13,6 +13,7 @@
   "column_break_1",
   "request_date",
   "department",
+  "mobile",
   "section_break_items",
   "items",
   "section_break_summary",
@@ -126,12 +127,18 @@
    "label": "Cost Center",
    "options": "Cost Center",
    "reqd": 1
+  },
+  {
+   "fieldname": "mobile",
+   "fieldtype": "Data",
+   "label": "Mobile",
+   "options": "Phone"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-10-30 21:20:16.817617",
+ "modified": "2025-11-04 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Store Management",
  "name": "Item Code Request",
@@ -157,6 +164,28 @@
    "read": 1,
    "report": 1,
    "role": "Codification User",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HO Purchase User",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HO Account User",
    "share": 1,
    "submit": 1,
    "write": 1

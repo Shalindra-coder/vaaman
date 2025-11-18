@@ -26,11 +26,19 @@
    },
    {
     "doctype": "Workflow Document State",
-    "state": "Pending Approval",
+    "state": "Pending HSN Verification",
     "doc_status": "1",
-    "allow_edit": "Item Manager",
+    "allow_edit": "HO Purchase User",
     "update_field": "workflow_state",
-    "update_value": "Pending Approval"
+    "update_value": "Pending HSN Verification"
+   },
+   {
+    "doctype": "Workflow Document State",
+    "state": "Pending Account Verification",
+    "doc_status": "1",
+    "allow_edit": "HO Account User",
+    "update_field": "workflow_state",
+    "update_value": "Pending Account Verification"
    },
    {
     "doctype": "Workflow Document State",
@@ -64,25 +72,49 @@
     "doctype": "Workflow Transition",
     "state": "Pending Codification",
     "action": "Add Code",
-    "next_state": "Pending Approval",
+    "next_state": "Pending HSN Verification",
     "allowed": "Codification User",
     "allow_self_approval": 1,
     "condition": "doc.items_with_code > 0"
    },
    {
     "doctype": "Workflow Transition",
-    "state": "Pending Approval",
-    "action": "Approve",
-    "next_state": "Approved",
-    "allowed": "Item Manager",
+    "state": "Pending Codification",
+    "action": "Reject",
+    "next_state": "Rejected",
+    "allowed": "Codification User",
     "allow_self_approval": 1
    },
    {
     "doctype": "Workflow Transition",
-    "state": "Pending Approval",
+    "state": "Pending HSN Verification",
+    "action": "Verify HSN",
+    "next_state": "Pending Account Verification",
+    "allowed": "HO Purchase User",
+    "allow_self_approval": 1
+   },
+   {
+    "doctype": "Workflow Transition",
+    "state": "Pending HSN Verification",
     "action": "Reject",
     "next_state": "Rejected",
-    "allowed": "Item Manager",
+    "allowed": "HO Purchase User",
+    "allow_self_approval": 1
+   },
+   {
+    "doctype": "Workflow Transition",
+    "state": "Pending Account Verification",
+    "action": "Approve & Create Items",
+    "next_state": "Approved",
+    "allowed": "HO Account User",
+    "allow_self_approval": 1
+   },
+   {
+    "doctype": "Workflow Transition",
+    "state": "Pending Account Verification",
+    "action": "Reject",
+    "next_state": "Rejected",
+    "allowed": "HO Account User",
     "allow_self_approval": 1
    }
   ]

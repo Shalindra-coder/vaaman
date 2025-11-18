@@ -20,6 +20,14 @@ class ItemCodeRequest(Document):
 		for item in self.items:
 			if item.is_asset_item and not item.asset_category:
 				frappe.throw(f"Asset Category is required for item '{item.item_name}' when Is Asset Item is checked")
+			
+			# Validate expense account is filled before moving to Approved state
+			if self.workflow_state == "Pending Account Verification" and not item.expense_account:
+				frappe.throw(f"Expense Account is required for item '{item.item_name}' before approval")
+			
+			# Validate UOM is filled
+			if not item.uom:
+				frappe.throw(f"UOM (Unit of Measure) is required for item '{item.item_name}'")
 		
 		# Update summary counts
 		self.update_summary_counts()
@@ -129,6 +137,12 @@ class ItemCodeRequest(Document):
 		if not item_row.generated_code:
 			frappe.throw(f"Generated Code is required to create Item for '{item_row.item_name}'")
 		
+		if not item_row.expense_account:
+			frappe.throw(f"Expense Account is required to create Item for '{item_row.item_name}'")
+		
+		if not item_row.uom:
+			frappe.throw(f"UOM is required to create Item for '{item_row.item_name}'")
+		
 		if frappe.db.exists("Item", item_row.generated_code):
 			frappe.msgprint(f"Item {item_row.generated_code} already exists in ERPNext.")
 			item_row.item_created = 1
@@ -141,13 +155,21 @@ class ItemCodeRequest(Document):
 			"item_code": item_row.generated_code,
 			"item_name": item_row.item_name,
 			"item_group": item_row.item_group,
-			"description": item_row.description,
+			"description": item_row.description or item_row.item_name,
+			"stock_uom": item_row.uom,
 			"gst_hsn_code": item_row.hsn_code,
 			"is_stock_item": item_row.is_stock_item,
 			"is_fixed_asset": item_row.is_asset_item,
 			"asset_category": item_row.asset_category if item_row.is_asset_item else None,
 			"disabled": 0
 		})
+		
+		# Add default accounts (expense account)
+		item.append("item_defaults", {
+			"company": frappe.defaults.get_defaults().get("company"),
+			"expense_account": item_row.expense_account
+		})
+		
 		item.insert(ignore_permissions=True)
 		
 		# Mark as created

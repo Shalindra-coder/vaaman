@@ -54,6 +54,8 @@ frappe.ui.form.on("Payment Request", {
 function update_custom_status(frm, save_if_changed = false) {
 	if (!frm.doc.name || frm.is_new()) return;
 
+	const previous_status = frm.doc.custom_status;
+
 	frappe.call({
 		method: "vaaman.payment_request.update_status_db",
 		args: {
@@ -66,8 +68,6 @@ function update_custom_status(frm, save_if_changed = false) {
 			if (r.message) {
 				frm.set_value("custom_status", r.message);
 				frm.refresh_field("custom_status");
-				frm.save();
-				frm.refresh_form();
 			}
 
 			if (r.exc) {
@@ -81,7 +81,7 @@ function update_custom_status(frm, save_if_changed = false) {
 			}
 
 			// Reload the form only if the status changed
-			if (save_if_changed && r.message && r.message !== frm.doc.custom_status) {
+			if (save_if_changed && r.message && r.message !== previous_status) {
 				frm.reload_doc();
 			}
 		},

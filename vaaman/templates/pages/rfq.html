@@ -290,7 +290,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         </label>
                         <select class="form-control payment-terms" id="payment_terms_template" name="payment_terms">
                             <option value="">Select Payment Terms</option>
-                            {% for term in payment_terms %}
+                            {% for term in payment_terms_template %}
                                 <option value="{{ term.name }}">{{ term.name }}</option>
                             {% endfor %}
                         </select>
