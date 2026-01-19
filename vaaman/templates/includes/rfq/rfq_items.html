@@ -2,43 +2,109 @@
 
 {% for d in doc.items %}
 <div class="rfq-item">
-	<div class="row">
-		<!-- Item Name & Description -->
-		<div class="col-sm-5 col-12" style="margin-bottom: 10px;margin-top: 5px;">
+	<div class="row" style="display: flex; align-items: flex-start;">
+
+		<!-- Item Name & Description (4) -->
+		<div class="col-sm-4 col-12" style="margin-bottom: 10px;margin-top: 5px; font-size: 16px;">
 			{{ item_name_and_description(d, doc) }}
 		</div>
 
-		<!-- Quantity -->
-		<div class="col-sm-2 col-4 text-right">
-			<input type="text" class="form-control text-right rfq-qty" style="margin-top: 5px;display: inline-block"
+		<div class="col-sm-1 col-4 text-right" style="flex: 0 0 10%; max-width: 10%;">
+			<input type="text"
+				class="form-control text-right rfq-qty"
 				value="{{ d.get_formatted('qty') }}"
-				data-idx="{{ d.idx }}">
-			<p class="text-muted small" style="margin-top: 10px;">
-				{{ _("UOM") + ":" + d.uom }}
+				data-idx="{{ d.idx }}"
+				style="margin-top: 5px; padding: 5px;">
+			<p class="text-muted small" style="margin-top: 10px; font-size: 16px;">
+				{{ d.uom }}
 			</p>
 		</div>
 
-		<!-- Rate -->
 		<div class="col-sm-2 col-4 text-right">
-			<input type="text" class="form-control text-right rfq-rate"
-				style="margin-top: 5px;display: inline-block" value="0.00"
-				data-idx="{{ d.idx }}">
+			<input type="text"
+				class="form-control text-right rfq-rate"
+				value="0.00"
+				data-idx="{{ d.idx }}"
+				style="margin-top: 5px; font-size: 16px;">
 		</div>
 
-		<!-- Discount -->
-
-		<div class="col-sm-2 col-4 text-right">
-			<input type="text" class="form-control text-right rfq-discount"
-				style="margin-top: 5px;display: inline-block" placeholder="Disc %"
-				data-idx="{{ d.idx }}">
+		<div class="col-sm-1 col-4 text-right">
+			<input type="text"
+				class="form-control text-right rfq-discount"
+				placeholder="Disc%"
+				data-idx="{{ d.idx }}"
+				style="margin-top: 5px; padding: 5px; font">
 		</div>
 
-
-
-		<!-- Amount -->
-		<div class="col-sm-1 col-4 text-right" style="padding-top: 9px;">
-			{{ doc.currency_symbol }} <span class="rfq-amount" data-idx="{{ d.idx }}">0.00</span>
+		<div class="col-sm-2 col-3 text-right">
+			<select class="form-control rfq-gst"
+				data-idx="{{ d.idx }}"
+				style="margin-top: 5px; font-size: 16px; padding: 1px;">
+				<option value="">Select GST</option>
+			</select>
 		</div>
+
+		<div class="col-sm-3col-3 text-left" style="padding-top: 12px; font-weight: bold;margin-left: 50px; font-size: 16px;">
+			{{ doc.currency_symbol }}
+			<span class="rfq-amount" data-idx="{{ d.idx }}">0.00</span>
+		</div>
+
 	</div>
 </div>
 {% endfor %}
+
+
+<script>
+frappe.ready(function () {
+
+	// LOAD GST LINK FIELD OPTIONS
+	frappe.call({
+		method: "frappe.client.get_list",
+		args: {
+			doctype: "Item Tax Template",
+			fields: ["name"],
+			limit_page_length: 100
+		},
+		callback: function (r) {
+			if (r.message) {
+				$(".rfq-gst").each(function () {
+					let select = $(this);
+					r.message.forEach(row => {
+						select.append(
+							`<option value="${row.name}">${row.name}</option>`
+						);
+					});
+				});
+			}
+		}
+	});
+
+	// LIVE AMOUNT CALCULATION
+	$(document).on("input", ".rfq-qty, .rfq-rate, .rfq-discount", function () {
+		let idx = $(this).data("idx");
+		let qty = parseFloat($(".rfq-qty[data-idx='"+idx+"']").val()) || 0;
+		let rate = parseFloat($(".rfq-rate[data-idx='"+idx+"']").val()) || 0;
+		let discount = parseFloat($(".rfq-discount[data-idx='"+idx+"']").val()) || 0;
+
+		let amount = qty * rate;
+		let discount_amount = (amount * discount) / 100;
+		let net_amount = amount - discount_amount;
+
+		$(".rfq-amount[data-idx='"+idx+"']").text(net_amount.toFixed(2));
+	});
+
+	window.get_rfq_items_data = function () {
+		let items = [];
+		$(".rfq-item").each(function () {
+			let idx = $(this).find(".rfq-qty").data("idx");
+			items.push({
+				qty: $(".rfq-qty[data-idx='"+idx+"']").val(),
+				rate: $(".rfq-rate[data-idx='"+idx+"']").val(),
+				discount: $(".rfq-discount[data-idx='"+idx+"']").val(),
+				item_tax_template: $(".rfq-gst[data-idx='"+idx+"']").val()  
+			});
+		});
+		return items;
+	};
+});
+</script>

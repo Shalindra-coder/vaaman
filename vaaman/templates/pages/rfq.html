@@ -19,97 +19,85 @@
 {% include "templates/includes/rfq.js" %}
 
 document.addEventListener("DOMContentLoaded", function() {
-  // Terms Popup Logic
+  // --- Terms Popup Logic ---
   var termsOverlay = document.getElementById("termsOverlay");
   var agreeBtn = document.getElementById("agreeBtn");
   var disagreeBtn = document.getElementById("disagreeBtn");
   var rfqContent = document.getElementById("rfqMainContent");
 
-  // Force show popup immediately
   if (termsOverlay) termsOverlay.style.display = "flex";
 
-  // Agree button — show form & load RFQ JS
   if (agreeBtn) {
     agreeBtn.addEventListener("click", function() {
       if (termsOverlay) termsOverlay.style.display = "none";
       if (rfqContent) rfqContent.style.display = "block";
-      // Dynamically load rfq.js AFTER agree
       var script = document.createElement("script");
       script.src = "/assets/erpnext/js/rfq.js";
       document.body.appendChild(script);
     });
   }
 
-  // Disagree button — redirect
   if (disagreeBtn) {
     disagreeBtn.addEventListener("click", function() {
       window.location.href = "/";
     });
   }
 
-  // Prevent closing by outside click
-  if (termsOverlay) {
-    termsOverlay.addEventListener("click", function(e) {
-      if (e.target === termsOverlay) {
-        // Do nothing — keeps popup open
-      }
-    });
+  // --- Payment Terms (Hardcoded Value) ---
+  const ptSelect = document.getElementById('payment_terms_template');
+  if (ptSelect) {
+    ptSelect.value = "30 Days";
   }
 
-  // Payment Terms Dropdown
-  const paymentTermsData = {{ payment_terms_template | tojson }};
-  function populatePaymentTerms(data) {
-    const selectElement = document.getElementById('payment_terms_template');
-    if (!selectElement) return;
-    data.forEach(term => {
-      const option = document.createElement('option');
-      option.value = term.name;
-      option.textContent = term.name;
-      selectElement.appendChild(option);
-    });
-  }
-  populatePaymentTerms(paymentTermsData);
-
-  // Calculation Function
+  // --- GST aur Totals Calculation Function ---
   function calculateTotals() {
-  // Read and sanitize inputs
-  var taxGrandTotalElem = document.querySelector('.tax-grand-total');
-  var gstElem = document.getElementById('gst_percentage');
-  var freightElem = document.getElementById('freight_percentage');
-  var grandTotalElem = document.getElementById('grand_total_with_tax');
+    var totalNetTotal = 0;
+    var totalGstAmount = 0;
+    
+    document.querySelectorAll('.rfq-item-row').forEach(function(row) {
+      var qty = parseFloat(row.querySelector('.item-qty')?.textContent || 0);
+      var rate = parseFloat(row.querySelector('.item-rate')?.value || 0);
+      var discountPercent = parseFloat(row.querySelector('.item-discount')?.value || 0);
+      var gstPercent = parseFloat(row.querySelector('.item-gst')?.value || 0);
+      
+      var amountBeforeTax = qty * rate;
+      var discountAmount = (amountBeforeTax * discountPercent) / 100;
+      var netAmount = amountBeforeTax - discountAmount;
+      
+      var itemGstAmount = (netAmount * gstPercent) / 100;
+      var finalItemTotal = netAmount + itemGstAmount;
+      
+      var amountDisplay = row.querySelector('.item-amount');
+      if (amountDisplay) amountDisplay.textContent = finalItemTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
+      
+      totalNetTotal += netAmount;
+      totalGstAmount += itemGstAmount;
+    });
 
-  var netTotal = taxGrandTotalElem ? parseFloat(taxGrandTotalElem.textContent.trim() || "0") : 0;
-  var gstPercent = gstElem ? parseFloat(gstElem.value.trim() || "0") : 0;
-  var freightPercent = freightElem ? parseFloat(freightElem.value.trim() || "0") : 0;
+    var netTotalDisplay = document.querySelector('.tax-grand-total');
+    if (netTotalDisplay) netTotalDisplay.textContent = totalNetTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
 
-  // ADD THESE LOGS HERE:
-  console.log('=== HTML calculateTotals Triggered ===');
-  console.log('Net Total:', netTotal);
-  console.log('GST Input Value:', gstElem ? gstElem.value : 'Element not found');
-  console.log('GST Percent Parsed:', gstPercent);
-  console.log('Freight Input Value:', freightElem ? freightElem.value : 'Element not found');
-  console.log('Freight Percent Parsed:', freightPercent);
+    var gstTotalDisplay = document.getElementById('total_gst_amount');
+    if (gstTotalDisplay) gstTotalDisplay.textContent = totalGstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
 
-  var gstAmount = (netTotal * gstPercent) / 100;
-  var freightAmount = (netTotal * freightPercent) / 100;
-  // ADD THESE LOGS HERE:
-  console.log('GST Amount Calculated:', gstAmount);
-  console.log('Freight Amount Calculated:', freightAmount);
+    var freightElem = document.getElementById('freight_percentage');
+    var freightPercent = freightElem ? parseFloat(freightElem.value || "0") : 0;
+    var freightAmount = (totalNetTotal * freightPercent) / 100;
 
-  var grandTotal = netTotal + gstAmount + freightAmount;
-  // ADD THIS LOG HERE:
-  console.log('Grand Total (HTML):', grandTotal);
+    var grandTotal = totalNetTotal + totalGstAmount + freightAmount;
+    var grandTotalElem = document.getElementById('grand_total_with_tax');
+    if (grandTotalElem) grandTotalElem.value = grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
+  }
 
-  if (grandTotalElem) grandTotalElem.value = grandTotal.toFixed(2);
-}
+  document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('item-rate') || 
+        e.target.classList.contains('item-discount') || 
+        e.target.classList.contains('item-gst') || 
+        e.target.id === 'freight_percentage') {
+      calculateTotals();
+    }
+  });
 
-  // Event Listeners for Calculation
-  var gstElem = document.getElementById('gst_percentage');
-  var freightElem = document.getElementById('freight_percentage');
-  if (gstElem) gstElem.addEventListener('input', calculateTotals);
-  if (freightElem) freightElem.addEventListener('input', calculateTotals);
-
-  // Calculate once after page loads
   calculateTotals();
 });
 </script>
@@ -117,158 +105,91 @@ document.addEventListener("DOMContentLoaded", function() {
 
 {% block page_content %}
 <style>
-    /* Enhanced UI Styles */
-    .section-card { background: #fff; border: 1px solid #e3e6f0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; overflow: hidden; }
+    /* --- Full Width Force Fix --- */
+    /* This targets the ERPNext standard container and forces it to take 100% width */
+    .container {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding-left: 30px !important;
+        padding-right: 30px !important;
+    }
+
+    #rfqMainContent {
+        width: 100% !important;
+    }
+
+    /* Standard Styling */
+    .form-control { height: 40px !important; border: 1px solid #d1d3e2; border-radius: 6px; font-size: 0.9rem; padding: 0.5rem 0.75rem; width: 100%; }
+    .section-card { background: #fff; border: 1px solid #e3e6f0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 2rem; overflow: hidden; width: 100%; }
     .section-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 1.5rem; font-size: 1.1rem; font-weight: 600; margin: 0; }
     .section-content { padding: 1.5rem; }
-    .form-group { margin-bottom: 1rem; }
-    .form-group label { font-weight: 500; color: #5a5c69; font-size: 0.875rem; margin-bottom: 0.5rem; }
-    .form-control { border: 1px solid #d1d3e2; border-radius: 6px; padding: 0.75rem; font-size: 0.875rem; transition: all 0.15s ease-in-out; }
-    .form-control:focus { border-color: #667eea; box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25); }
-    .row-equal-height { display: flex; align-items: stretch; }
-    .row-equal-height .col-6 { display: flex; flex-direction: column; }
-    .total-display { background: #f8f9fc; border: 1px solid #e3e6f0; border-radius: 6px; padding: 0.75rem; font-weight: 600; color: #5a5c69; text-align: right; }
-    .payment-schedule-container { margin-top: 1rem; width: 100%; }
-    .payment-schedule-container .table-title { font-weight: 500; margin-bottom: 8px; color: #5a5c69; }
-    .payment-schedule-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; border-radius: 6px; overflow: hidden; }
-    .payment-schedule-table thead th { background-color: #f8f9fa; font-weight: 500; padding: 12px; border: 1px solid #dee2e6; text-align: left; white-space: nowrap; color: #5a5c69; }
-    .payment-schedule-table tbody td { padding: 12px; border: 1px solid #dee2e6; vertical-align: middle; }
-    .payment-schedule-table th.text-right, .payment-schedule-table td.text-right { text-align: right; }
-    .payment-schedule-table tbody tr:hover { background-color: #f1f3f5; }
-    .file-upload-wrapper { position: relative; display: inline-block; width: 100%; }
-    .file-upload-input { width: 100%; padding: 0.75rem; border: 2px dashed #d1d3e2; border-radius: 6px; background: #f8f9fc; cursor: pointer; transition: all 0.3s ease; }
-    .file-upload-input:hover { border-color: #667eea; background: #f0f2ff; }
-    @media (max-width: 768px) { .row-equal-height { display: block; } .section-content { padding: 1rem; } }
-    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 6px; padding: 0.75rem 1.5rem; font-weight: 500; }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+    .cart-item-header { background: #f8f9fc; padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #e3e6f0; }
+    .rfq-item-row { padding: 15px 0; border-bottom: 1px solid #f1f3f9; align-items: center; display: flex; flex-wrap: wrap; width: 100%; }
+    .total-display { background: #f8f9fc; border: 2px solid #667eea !important; font-weight: 700; color: #4e73df; text-align: right; }
+    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 0.6rem 1.5rem; }
+    
+    #paymentScheduleContainer { display: none !important; }
+
+    /* Responsive adjustments */
+    @media (max-width: 992px) {
+        .container { padding-left: 15px !important; padding-right: 15px !important; }
+    }
 </style>
 
 <!-- Terms & Conditions Overlay -->
-<div id="termsOverlay" style="
-    display:none;
-    position:fixed;
-    top:0; left:0;
-    width:100%; height:100%;
-    background:rgba(0,0,0,0.5);
-    z-index:9999;
-    align-items:center;
-    justify-content:center;
-">
-    <div style="
-        background:#fff;
-        width:600px;
-        max-width:90%;
-        border-radius:12px;
-        box-shadow:0 8px 32px rgba(0,0,0,0.3);
-        overflow:hidden;
-        display:flex;
-        flex-direction:column;
-        max-height:80vh;
-    ">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:20px; font-weight:600; color:white; font-size:1.1rem;">
-            {{ _("Terms & Conditions") }}
-        </div>
-        <div style="
-            padding:20px;
-            overflow-y:auto;
-            font-size:14px;
-            line-height:1.6;
-            flex:1;
-            color: #5a5c69;
-        ">
-            {{ terms_and_conditions | safe }}
-        </div>
-        <div style="padding:20px; text-align:right; border-top:1px solid #e3e6f0; background: #f8f9fc;">
+<div id="termsOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; width:600px; max-width:90%; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.3); overflow:hidden; display:flex; flex-direction:column; max-height:80vh;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:20px; font-weight:600; color:white;">{{ _("Terms & Conditions") }}</div>
+        <div style="padding:20px; overflow-y:auto; font-size:14px; flex:1;">{{ terms_and_conditions | safe }}</div>
+        <div style="padding:20px; text-align:right; border-top:1px solid #e3e6f0;">
             <button id="disagreeBtn" class="btn btn-secondary mr-2">{{ _("Disagree") }}</button>
             <button id="agreeBtn" class="btn btn-primary">{{ _("Agree") }}</button>
         </div>
     </div>
 </div>
 
-<!-- Main RFQ content -->
 <div id="rfqMainContent" style="display:none;">
-    <!-- Header Section -->
-    <div class="section-card">
-        <div class="section-content">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h3 class="text-primary mb-0">{{ doc.supplier }}</h3>
-                    <small class="text-muted">Request for Quotation</small>
-                </div>
-                <div class="col-md-4 text-right">
-                    <span class="badge badge-primary p-2">{{ doc.get_formatted("transaction_date") }}</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Pricing Section -->
     <div class="section-card">
-        <h2 class="section-header">
-            <i class="fas fa-calculator mr-2"></i>Pricing Section
-        </h2>
+        <h2 class="section-header"><i class="fas fa-calculator mr-2"></i>{{ _("Pricing Section") }}</h2>
         <div class="section-content">
-            <div id="order-container">
-                <div id="rfq-items">
-                    <div class="row cart-item-header font-weight-bold text-muted">
-                        <div class="col-sm-5 col-12">{{ _("Items") }}</div>
-                        <div class="col-sm-2 col-4 text-right">{{ _("Qty") }}</div>
-                        <div class="col-sm-2 col-4 text-right">{{ _("Rate") }}</div>
-                        <div class="col-sm-2 col-4 text-right">{{ _("Discount") }}</div>
-                        <div class="col-sm-1 col-4 text-right">{{ _("Amount") }}</div>
-                    </div>
-                    <hr>
-                    {% if doc.items %}
-                    <div class="rfq-items">
-                        {% include "templates/includes/rfq/rfq_items.html" %}
-                    </div>
-                    {% endif %}
+            <div style="width: 100%;" id="rfq-items">
+                <!-- Table Header -->
+                <div class="row cart-item-header font-weight-bold text-muted d-none d-sm-flex">
+                    <div class="col-sm-4">{{ _("Items") }}</div>
+                    <div class="col-sm-1 text-right">{{ _("Qty") }}</div>
+                    <div class="col-sm-2 text-right">{{ _("Rate") }}</div>
+                    <div style= "margin-right: -40px;" class="col-sm-1 text-right">{{ _("Disc %") }}</div>
+                    <div style= "margin-left:10px" class="col-sm-2 text-right">{{ _("GST %") }}</div>
+                    <div class="col-sm-2 text-right">{{ _("Total Amount") }}</div>
                 </div>
-
+                <!-- Row Items -->
                 {% if doc.items %}
-                <div class="row mb-4">
-                    <div class="col-md-6 offset-md-6">
-                        <div class="card">
-                            <div class="card-body">
-                                <div class="row mb-2">
-                                    <div class="col-8 text-right font-weight-bold">{{ _("Net Total:") }}</div>
-                                    <div class="col-4 text-right">
-                                        {{ doc.currency_symbol }} <span class="tax-grand-total">0.0</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="rfq-items">
+                    {% include "templates/includes/rfq/rfq_items.html" %}
                 </div>
                 {% endif %}
+            </div>
 
-                <!-- Tax and Charges Section -->
-                <div class="row row-equal-height">
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="gst_percentage">
-                                <i class="fas fa-percentage mr-1"></i>{{ _("GST (%)") }}
-                            </label>
-                            <input type="number" step="0.01" class="form-control" id="gst_percentage"
-                                   placeholder="Enter GST %" min="0" max="100">
-                        </div>
+            <!-- Calculation Summary Card -->
+            <div class="row mt-4">
+                <div class="col-md-5 offset-md-7 p-4 bg-light border rounded">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="font-weight-bold">{{ _("Net Total (Excl. Tax):") }}</span>
+                        <span>{{ doc.currency_symbol }} <span class="tax-grand-total">0.00</span></span>
                     </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="freight_percentage">
-                                <i class="fas fa-truck mr-1"></i>{{ _("Freight Charges (%)") }}
-                            </label>
-                            <input type="number" step="0.01" class="form-control" id="freight_percentage"
-                                   placeholder="Enter Freight %" min="0" max="100">
-                        </div>
+                    <div class="d-flex justify-content-between mb-3 text-info">
+                        <span class="font-weight-bold">{{ _("Total GST Amount:") }}</span>
+                        <span>{{ doc.currency_symbol }} <span id="total_gst_amount">0.00</span></span>
                     </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="grand_total_with_tax">
-                                <i class="fas fa-coins mr-1"></i>{{ _("Grand Total (with Tax)") }}
-                            </label>
-                            <input type="text" class="form-control total-display" id="grand_total_with_tax"
-                                   placeholder="0.00" readonly>
+                    <div class="row align-items-end">
+                        <div class="col-6">
+                            <label class="small mb-1">{{ _("Freight Charges (%)") }}</label>
+                            <input type="number" step="0.01" class="form-control" id="freight_percentage" placeholder="0.00">
+                        </div>
+                        <div class="col-6">
+                            <label class="small mb-1 font-weight-bold text-primary">{{ _("Grand Total (Incl. Taxes)") }}</label>
+                            <input type="text" class="form-control total-display" id="grand_total_with_tax" readonly>
                         </div>
                     </div>
                 </div>
@@ -278,31 +199,22 @@ document.addEventListener("DOMContentLoaded", function() {
 
     <!-- Commercial Terms Section -->
     <div class="section-card">
-        <h2 class="section-header">
-            <i class="fas fa-handshake mr-2"></i>Commercial Terms Section
-        </h2>
+        <h2 class="section-header"><i class="fas fa-handshake mr-2"></i>{{ _("Commercial Terms Section") }}</h2>
         <div class="section-content">
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group">
-                        <label for="payment_terms_template">
-                            <i class="fas fa-file-contract mr-1"></i>{{ _("Payment Terms Template") }}
-                        </label>
-                        <select class="form-control payment-terms" id="payment_terms_template" name="payment_terms">
-                            <option value="">Select Payment Terms</option>
-                            {% for term in payment_terms_template %}
-                                <option value="{{ term.name }}">{{ term.name }}</option>
-                            {% endfor %}
+                        <label>{{ _("Payment Terms Template") }}</label>
+                        <select class="form-control" id="payment_terms_template">
+                            <option value="30 Days">30 Days</option>
                         </select>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-group">
-                        <label for="Encoter">
-                            <i class="fas fa-file-contract mr-1"></i>{{ _("Incoterm") }}
-                        </label>
-                        <select class="form-control payment-terms" id="encoterm_template" name="payment_terms">
-                            <option value="">Incoterm</option>
+                        <label>{{ _("Incoterm") }}</label>
+                        <select class="form-control" id="encoterm_template">
+                            <option value="">Select Incoterm</option>
                             {% for term in incoterm %}
                                 <option value="{{ term.name }}">{{ term.name }}</option>
                             {% endfor %}
@@ -310,118 +222,33 @@ document.addEventListener("DOMContentLoaded", function() {
                     </div>
                 </div>
             </div>
-
-            <div id="paymentScheduleContainer" class="payment-schedule-container" style="display: none;">
-                <div class="table-title">
-                    <i class="fas fa-calendar-alt mr-1"></i>{{ _("Payment Schedule") }}
-                </div>
-                <div class="table-responsive">
-                    <table class="table payment-schedule-table" id="paymentScheduleTable">
-                        <thead>
-                            <tr>
-                                <th>{{ _("Payment Term") }}</th>
-                                <th>{{ _("Description") }}</th>
-                                <th>{{ _("Due Date") }}</th>
-                                <th class="text-right">{{ _("Invoice Portion %") }}</th>
-                                <th class="text-right">{{ _("Payment Amount") }}</th>
-                            </tr>
-                        </thead>
-                        <tbody id="paymentScheduleBody">
-                            <!-- Dynamic content will be inserted here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
     </div>
 
     <!-- Attach Document Section -->
     <div class="section-card">
-        <h2 class="section-header">
-            <i class="fas fa-paperclip mr-2"></i>Attach Document Section
-        </h2>
+        <h2 class="section-header"><i class="fas fa-paperclip mr-2"></i>{{ _("Attach Document Section") }}</h2>
         <div class="section-content">
             <div class="row">
                 <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="document_attachment">
-                            <i class="fas fa-upload mr-1"></i>{{ _("Attach File") }}
-                        </label>
-                        <div class="file-upload-wrapper">
-                            <input type="file" id="document_attachment" class="file-upload-input"
-                                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls">
-                            <div class="text-center text-muted mt-2">
-                                <small>
-                                    <i class="fas fa-cloud-upload-alt mr-1"></i>
-                                    Drag & drop files here or click to browse
-                                </small>
-                            </div>
-                        </div>
-                    </div>
+                    <label>{{ _("Attach File") }}</label>
+                    <input type="file" id="document_attachment" class="form-control-file border p-2 w-100 rounded bg-light" style="height: auto !important;">
                 </div>
                 <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="document_notes">
-                            <i class="fas fa-sticky-note mr-1"></i>{{ _("Notes") }}
-                        </label>
-                        <textarea class="form-control" id="document_notes" rows="4"
-                                  placeholder="Add any notes or comments about the attached document..."></textarea>
-                    </div>
+                    <label>{{ _("Notes") }}</label>
+                    <textarea class="form-control" id="document_notes" rows="2" style="height: auto !important;" placeholder="Add notes..."></textarea>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Quotations Section -->
-    <div class="section-card">
-        <h2 class="section-header">
-            <i class="fas fa-quote-right mr-2"></i>Existing Quotations
-        </h2>
-        <div class="section-content">
-            {% if doc.rfq_links %}
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="thead-light">
-                        <tr>
-                            <th>{{ _("Quotation ID") }}</th>
-                            <th>{{ _("Status") }}</th>
-                            <th>{{ _("Date") }}</th>
-                            <th>{{ _("Action") }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for d in doc.rfq_links %}
-                        <tr>
-                            <td><span class="badge badge-secondary">{{ d.name }}</span></td>
-                            <td><span class="badge badge-info">{{ d.status }}</span></td>
-                            <td>{{ d.transaction_date }}</td>
-                            <td>
-                                <a href="/supplier-quotations/{{ d.name }}" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-external-link-alt mr-1"></i>View
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="text-center text-muted py-4">
-                <i class="fas fa-inbox fa-3x mb-3"></i>
-                <p>No existing quotations found</p>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Submit Section -->
-    <div class="text-center mb-4">
-        <button type="submit" class="btn btn-primary btn-lg px-5">
+    <!-- Submit Button -->
+    <div class="text-center mb-5">
+        <button type="submit" class="btn btn-primary btn-lg px-5 shadow">
             <i class="fas fa-paper-plane mr-2"></i>{{ _("Submit Quotation") }}
         </button>
     </div>
 </div>
 
-<!-- Font Awesome Icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 {% endblock %}

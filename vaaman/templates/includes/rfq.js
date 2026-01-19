@@ -1,5 +1,4 @@
-// Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-// License: GNU General Public License v3. See license.txt
+// Copyright (c) 2015, Frappe Technologies Pvt. Ltd.
 
 window.doc = {{ doc.as_json() }};
 
@@ -11,20 +10,34 @@ $(document).ready(function() {
 	doc.buying_price_list = "{{ doc.buying_price_list }}";
 });
 
+
+/* =====================================
+	GST % EXTRACT FROM TEMPLATE NAME
+	Example: "GST 18% - PP" => 18
+===================================== */
+function extract_gst_percent(gst_template) {
+	if (!gst_template) return 0;
+
+	let match = gst_template.match(/(\d+(\.\d+)?)\s*%/);
+	return match ? flt(match[1]) : 0;
+}
+
+
 rfq = class rfq {
+
 	constructor(){
 		this.onfocus_select_all();
 		this.change_qty();
 		this.change_rate();
 		this.change_discount();
+		this.change_gst();
 		this.update_freight_charges();
-		this.update_gst();
 		this.terms();
-		this.payment_terms_on_change();
 		this.submit_rfq();
 		this.navigate_quotations();
-		this.get_final_amount();
-		this.calculate_grand_total_with_tax(); // Initialize calculation
+
+		// Initial calculation
+		this.calculate_all_totals();
 	}
 
 	onfocus_select_all(){
@@ -33,424 +46,168 @@ rfq = class rfq {
 		});
 	}
 
-	// update base amount after qty change
+	/* ============= EVENTS ============= */
+
 	change_qty(){
-		var me = this;
+		let me = this;
 		$('.rfq-items').on("change", ".rfq-qty", function(){
-			me.idx = parseFloat($(this).attr('data-idx'));
-			me.qty = parseFloat(flt($(this).val())) || 0;
-			let rate = parseFloat(flt($(repl('.rfq-rate[data-idx=%(idx)s]',{'idx': me.idx})).val())) || 0;
-
-			let amount = rate * me.qty;
-			me.set_base_amount(me.idx, amount);
-
-			$(this).val(format_number(me.qty, doc.number_format, 2));
-			me.recalculate_item_totals(me.idx);
-			me.recalculate_grand_total();
-			me.calculate_grand_total_with_tax(); // Update grand total with tax
+			$(this).val(format_number(flt($(this).val()), doc.number_format, 2));
+			me.calculate_all_totals();
 		});
 	}
 
 	change_rate(){
-		var me = this;
-		$(".rfq-items").on("change", ".rfq-rate", function(){
-			me.idx = parseFloat($(this).attr('data-idx'));
-			let rate = parseFloat(flt($(this).val())) || 0;
-			let qty = parseFloat(flt($(repl('.rfq-qty[data-idx=%(idx)s]',{'idx': me.idx})).val())) || 0;
-
-			let amount = rate * qty;
-			me.set_base_amount(me.idx, amount);
-
-			$(this).val(format_number(rate, doc.number_format, 2));
-			me.recalculate_item_totals(me.idx);
-			me.recalculate_grand_total();
-			me.calculate_grand_total_with_tax(); // Update grand total with tax
+		let me = this;
+		$('.rfq-items').on("change", ".rfq-rate", function(){
+			$(this).val(format_number(flt($(this).val()), doc.number_format, 2));
+			me.calculate_all_totals();
 		});
 	}
 
 	change_discount(){
-		var me = this;
-		$(".rfq-items").on("change", ".rfq-discount", function(){
-			me.idx = parseFloat($(this).attr('data-idx'));
-
-			let discount_percent = parseFloat(flt($(this).val())) || 0;
-			let qty = parseFloat(flt($(repl('.rfq-qty[data-idx=%(idx)s]', {'idx': me.idx})).val())) || 0;
-			let rate = parseFloat(flt($(repl('.rfq-rate[data-idx=%(idx)s]', {'idx': me.idx})).val())) || 0;
-
-			let discounted_rate = rate - (rate * (discount_percent / 100));
-			let amount = discounted_rate * qty;
-
-			me.set_base_amount(me.idx, amount);
-			me.recalculate_item_totals(me.idx);
-			me.recalculate_grand_total();
-			me.calculate_grand_total_with_tax(); // Update grand total with tax
+		let me = this;
+		$('.rfq-items').on("change", ".rfq-discount", function(){
+			me.calculate_all_totals();
 		});
 	}
 
-	// UPDATED: GST now applies to grand total, not individual items
-	update_gst() {
-		var me = this;
-		$(document).on("change", "#gst_percentage", function () {
-			let gst_percentage = parseFloat($(this).val()) || 0;
-			doc.gst_percentage = gst_percentage;
-			me.calculate_grand_total_with_tax();
+	change_gst(){
+		let me = this;
+		$('.rfq-items').on("change", ".rfq-gst", function(){
+			me.calculate_all_totals();
 		});
 	}
 
-	// UPDATED: Freight now applies to grand total, not individual items
-	update_freight_charges() {
-		var me = this;
-		$(document).on("change", "#freight_percentage", function () {
-			let freight_percentage = parseFloat($(this).val()) || 0;
-			doc.freight_percentage = freight_percentage;
-			me.calculate_grand_total_with_tax();
+	update_freight_charges(){
+		let me = this;
+		$(document).on("change", "#freight_percentage", function(){
+			me.calculate_all_totals();
 		});
 	}
 
-	// SIMPLIFIED: Only calculate base amounts for items (no individual GST/freight)
-	recalculate_item_totals(idx){
-		let item = doc.items.find(i => i.idx === idx);
-		if(!item) return;
+	/* ============= CORE CALCULATION ============= */
 
-		// Only calculate base amount (qty * rate after discount)
-		let base_amount = item.base_amount || 0;
-		item.final_amount = base_amount; // Final amount is just the base amount now
+	calculate_all_totals(){
+		let total_net_amount = 0;
+		let total_gst_amount = 0;
 
-		// Update display
-		this.update_display(idx);
-	}
-
-	set_base_amount(idx, amount){
-		let item = doc.items.find(i => i.idx === idx);
-		if(item){
-			item.base_amount = amount;
-			item.amount = amount; // Keep original amount field for compatibility
-			item.final_amount = amount; // Set final amount to base amount
-		}
-	}
-
-	update_display(idx){
-		let item = doc.items.find(i => i.idx === idx);
-		if(!item) return;
-
-		// Show the base amount for each item
-		let total = item.base_amount || 0;
-		$(repl('.rfq-amount[data-idx=%(idx)s]',{'idx': idx}))
-			.text(format_number(total, doc.number_format, 2));
-	}
-
-	// UPDATED: Calculate grand total (sum of all item base amounts)
-	recalculate_grand_total(){
-		doc.grand_total = 0.0;
 		doc.items.forEach(function(item){
-			// Use base amount for grand total calculation
-			let total = item.base_amount || 0;
-			doc.grand_total += flt(total);
+			let idx = item.idx;
+
+			let qty = flt($(`.rfq-qty[data-idx="${idx}"]`).val());
+			let rate = flt($(`.rfq-rate[data-idx="${idx}"]`).val());
+			let discount_p = flt($(`.rfq-discount[data-idx="${idx}"]`).val());
+
+			// STEP 1: Base amount
+			let base_amount = qty * rate;
+
+			// STEP 2: Discount
+			let row_net_amount = base_amount - (base_amount * (discount_p / 100));
+
+			// STEP 3: GST from Item Tax Template (UI dropdown value)
+			let gst_template = $(`.rfq-gst[data-idx="${idx}"]`).val();
+			let gst_p = extract_gst_percent(gst_template);
+
+			// STEP 4: GST amount
+			let row_gst_amount = (row_net_amount * gst_p) / 100;
+
+			// STEP 5: Row total
+			let row_total = row_net_amount + row_gst_amount;
+
+			// Save to doc object
+			item.qty = qty;
+			item.rate = rate;
+			item.custom_discount_ = discount_p;
+			item.item_tax_template = gst_template; 
+			item.custom_gst_percent = gst_template; // 🔥 Custom Link field ke liye value assign ki
+			item.amount = row_net_amount;
+			item.item_gst_amount = row_gst_amount;
+
+			// UI update
+			$(`.rfq-amount[data-idx="${idx}"]`)
+				.text(format_number(row_total, doc.number_format, 2));
+
+			total_net_amount += row_net_amount;
+			total_gst_amount += row_gst_amount;
 		});
-		$('.tax-grand-total').text(format_number(doc.grand_total, doc.number_format, 2));
+
+		// STEP 6: Freight on (Net + GST)
+		let net_plus_gst = total_net_amount + total_gst_amount;
+		let freight_p = flt($('#freight_percentage').val());
+		let freight_amount = (net_plus_gst * freight_p) / 100;
+
+		// STEP 7: Grand Total
+		let grand_total = net_plus_gst + freight_amount;
+
+		// Save header values
+		doc.net_total = total_net_amount;
+		doc.total_gst = total_gst_amount;
+		doc.freight_percentage = freight_p;
+		doc.freight_amount = freight_amount;
+		doc.grand_total = grand_total;
+
+		// UI SUMMARY
+		$('.tax-net-total').text(format_number(total_net_amount, doc.number_format, 2));
+		$('#display_total_gst').text(format_number(total_gst_amount, doc.number_format, 2));
+		$('#display_freight_amount').text(format_number(freight_amount, doc.number_format, 2));
+		$('.tax-grand-total').text(format_number(grand_total, doc.number_format, 2));
+		$('#grand_total_with_tax').val(format_number(grand_total, doc.number_format, 2));
 	}
 
-	// NEW: Calculate grand total with GST and freight charges applied to the total
-calculate_grand_total_with_tax() {
-  let net_total = doc.grand_total || 0;
-  let gst_percentage = doc.gst_percentage || 0;
-  let freight_percentage = doc.freight_percentage || 0;
+	/* ============= SUBMIT ============= */
 
-  // ADD THESE LOGS HERE:
-  console.log('=== JS calculate_grand_total_with_tax Triggered ===');
-  console.log('Net Total (JS):', net_total);
-  console.log('Doc GST Percentage:', gst_percentage);
-  console.log('Doc Freight Percentage:', freight_percentage);
+	submit_rfq(){
+		let me = this;
 
-  // Calculate GST amount on net total
-  let gst_amount = (net_total * gst_percentage) / 100;
+		$('.btn-lg').click(function(){
+			me.calculate_all_totals();
 
-  // Calculate freight amount on (net total + GST)
-  let total_with_gst = net_total + gst_amount;
-  let freight_amount = (net_total * freight_percentage) / 100;
+			let item_details = doc.items.map(item => ({
+				item_code: item.item_code,
+				qty: flt(item.qty),
+				rate: flt(item.rate),
+				custom_discount_: flt(item.custom_discount_),
+				item_tax_template: item.item_tax_template, 
+				custom_gst_percent: item.custom_gst_percent, // 🔥 Supplier Quotation Item table mein jayega
+				amount: flt(item.amount),
+				warehouse: item.warehouse
+			}));
 
-  // ADD THESE LOGS HERE:
-  console.log('GST Amount (JS):', gst_amount);
-  console.log('Freight Amount (JS):', freight_amount);
+			let other_details = {
+				freight_percentage: flt(doc.freight_percentage),
+				freight_amount: flt(doc.freight_amount),
+				net_total: flt(doc.net_total),
+				total_gst: flt(doc.total_gst),
+				grand_total: flt(doc.grand_total),
+				payment_terms_template: $('#payment_terms_template').val(),
+				incoterm: $('#encoterm_template').val()
+			};
 
-  // Calculate final grand total
-  let grand_total_with_tax = total_with_gst + freight_amount;
-  // ADD THIS LOG HERE:
-  console.log('Grand Total with Tax (JS):', grand_total_with_tax);
-
-  // Store values for later use
-  doc.gst_amount = gst_amount;
-  doc.freight_amount = freight_amount;
-  doc.grand_total_with_tax = grand_total_with_tax;
-
-  // Update the display field
-  $('#grand_total_with_tax').val(format_number(grand_total_with_tax, doc.number_format, 2));
-}
-
-	terms(){
-		$(".terms").on("change", ".terms-feedback", function(){
-			doc.terms = $(this).val();
-		});
-	}
-
-	submit_rfq() {
-    $('.btn-lg').click(function () {
-        var me = this;
-        var $btn = $(me);  // Cache for easier manipulation
-
-        try {
-            // Disable button and show loading state
-            $btn.prop('disabled', true)
-                .html('<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...');  // Use .html() for icon
-
-            console.log('Submit clicked - starting process');  // Debug log
-
-            // 1️⃣ Collect item details
-            let item_details = [];
-            doc.items.forEach(function (item) {
-                let rate = parseFloat(
-                    $(repl('.rfq-rate[data-idx=%(idx)s]', { 'idx': item.idx })).val().replace(/,/g, '')
-                ) || 0;
-                let qty = parseFloat(
-                    $(repl('.rfq-qty[data-idx=%(idx)s]', { 'idx': item.idx })).val().replace(/,/g, '')
-                ) || 0;
-                let discount = parseFloat(
-                    $(repl('.rfq-discount[data-idx=%(idx)s]', { 'idx': item.idx })).val()
-                ) || 0;
-                let amount = parseFloat(item.base_amount) || 0;
-
-                item_details.push({
-                    item_name: item.item_name,
-                    item_code: item.item_code,
-                    rate: rate,
-                    qty: qty,
-                    custom_discount_: discount,
-                    amount: amount,
-                    warehouse: item.warehouse
-                });
-            });
-
-            // 2️⃣ Collect payment term data
-            const table = document.getElementById('paymentScheduleTable');
-            const rows = table ? table.querySelectorAll('tbody tr') : [];
-            let payment_term_data = [];
-            rows.forEach(row => {
-                const cells = row.querySelectorAll('td');
-                if (cells.length >= 5) {  // Safety check
-                    payment_term_data.push({
-                        paymentTerm: cells[0].textContent,
-                        description: cells[1].textContent,
-                        dueDate: cells[2].querySelector('input')?.value || '',
-                        percentage: cells[3].textContent,
-                        amount: cells[4].textContent
-                    });
-                }
-            });
-
-            // 3️⃣ Collect all form data
-            let gstValue = $('#gst_percentage').val() || 0;
-            let freightValue = $('#freight_percentage').val() || 0;
-            let payment_terms_template = $('#payment_terms_template option:selected').text() || '';
-            let Encoterm = $('#encoterm_template option:selected').text() || '';
-            let document_notes = $('#document_notes').val() || '';
-            let additional_notes = $('#additional_notes').val() || '';
-
-            // 4️⃣ File handling
-            let fileInput = document.getElementById('document_attachment');
-            let file = fileInput ? fileInput.files[0] : null;
-
-            // Function to submit to Frappe
-            function submitToFrappe(other_details) {
-                console.log('Calling API with data:', other_details);  // Debug: Log payload
-                frappe.freeze('Submitting Quotation...');
-                frappe.call({
-                    type: "POST",
-                    method: "vaaman.api.create_supplier_quotation",
-                    args: {
-                        doc: doc,
-                        item_details: JSON.stringify(item_details),  // Ensure JSON strings for arrays
-                        payment_term_data: JSON.stringify(payment_term_data),
-                        other_details: JSON.stringify(other_details)  // Stringify to avoid arg issues
-                    },
-                    btn: me,
-                    callback: function (r) {
-                        console.log('API success:', r);  // Debug
-                        frappe.unfreeze();
-                        if (r.message) {
-                            $btn.hide();
-                            window.location.href = "/supplier-quotations/" + encodeURIComponent(r.message);
-                        } else {
-                            frappe.msgprint(__('Submission failed: No response received.'));
-                            resetButton();
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        console.log('API error triggered:', error, xhr);  // Debug
-                        frappe.unfreeze();
-                        let errMsg = error || 'Unknown error';
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            errMsg = xhr.responseJSON.message;  // Parse Frappe error details
-                        }
-                        frappe.msgprint({
-                            title: __('Submission Failed'),
-                            indicator: 'red',
-                            message: __('Error: {0}. Please check your inputs and try again.', [errMsg])
-                        });
-                        // Fallback timeout to ensure reset
-                        setTimeout(resetButton, 1000);
-                    }
-                });
-            }
-
-            // 5️⃣ Prepare other details
-            let other_details = {
-                gstValue: gstValue,
-                freightValue: freightValue,
-                payment_terms_template: payment_terms_template,
-                document_notes: document_notes,
-                additional_notes: additional_notes,
-                net_total: doc.grand_total,
-                gst_amount: doc.gst_amount || 0,
-                freight_amount: doc.freight_amount || 0,
-                grand_total_with_tax: doc.grand_total_with_tax || doc.grand_total,
-                attach_file: null,
-                Encoterm: Encoterm
-            };
-
-            // 6️⃣ Handle file if present
-            if (file) {
-                let reader = new FileReader();
-                reader.onload = function (e) {
-                    let base64Data = e.target.result.split(',')[1];
-                    other_details.attach_file = {
-                        file_name: file.name,
-                        content: base64Data
-                    };
-                    submitToFrappe(other_details);
-                };
-                reader.onerror = function () {
-                    console.log('File read error');  // Debug
-                    frappe.msgprint(__('File read error. Please select a valid file.'));
-                    resetButton();
-                };
-                reader.readAsDataURL(file);
-            } else {
-                submitToFrappe(other_details);
-            }
-
-        } catch (ex) {
-            console.error('Submit handler error:', ex);  // Debug any JS crash
-            frappe.unfreeze();  // Ensure UI unlocks
-            frappe.msgprint({
-                title: __('Submission Failed'),
-                indicator: 'red',
-                message: __('Unexpected error: {0}. Please refresh and try again.', [ex.message])
-            });
-            resetButton();  // Force reset on exception
-        }
-
-        // Helper to reset button state
-        function resetButton() {
-            console.log('Resetting button state');  // Debug: Confirm this fires
-            $btn.prop('disabled', false)
-                .html('<i class="fas fa-paper-plane mr-2"></i>Submit Quotation')  // ✅ Use .html() for icon rendering
-                .removeClass('btn-loading');
-        }
-    });
-}
-	navigate_quotations() {
-		$('.quotations').click(function(){
-			name = $(this).attr('idx');
-			window.location.href = "/quotations/" + encodeURIComponent(name);
-		});
-	}
-
-	payment_terms_on_change() {
-		var me = this;
-		$('#payment_terms_template').on('change', function() {
-			var selectedValue = $(this).val();
-			var selectedText = $(this).find('option:selected').text();
-
-			if (!selectedValue) {
-				me.hidePaymentSchedule();
-				return;
-			}
-
-			frappe.freeze();
 			frappe.call({
-				type: "POST",
-				method: "vaaman.api.get_payment_schedule",
-				args: { template_name: selectedText },
-				btn: this,
-				callback: function(r) {
-					frappe.unfreeze();
-					if (r.message) {
-						me.createPaymentScheduleTable(r.message);
-						me.showPaymentSchedule();
-					} else {
-						me.createPaymentScheduleTable([]);
-						me.showPaymentSchedule();
-					}
+				method: "vaaman.api.create_supplier_quotation",
+				args: {
+					doc: doc,
+					item_details: JSON.stringify(item_details),
+					other_details: JSON.stringify(other_details)
 				},
-				error: function(err) {
-					frappe.unfreeze();
-					me.hidePaymentSchedule();
+				callback: function(r){
+					if (r.message) {
+						window.location.href = "/supplier-quotations/" + r.message;
+					}
 				}
 			});
 		});
 	}
 
-	createPaymentScheduleTable(scheduleData) {
-		const tbody = document.getElementById('paymentScheduleBody');
-		if (!tbody) return;
-
-		tbody.innerHTML = ''; // Clear existing content
-
-		if (!scheduleData || scheduleData.length === 0) {
-			tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No payment schedule available</td></tr>';
-			return;
-		}
-
-		// Use grand total with tax for payment calculations
-		const grandTotal = doc.grand_total_with_tax || doc.grand_total || 0;
-
-		scheduleData.forEach((item, index) => {
-			let percentage = parseFloat(item.invoice_portion) || 0;
-			let amount = (grandTotal * percentage) / 100;
-
-			const row = document.createElement('tr');
-			row.innerHTML = `
-				<td>${item.payment_term || 'N/A'}</td>
-				<td>${item.description || 'N/A'}</td>
-				<td>
-					<input type="date"
-						   class="form-control"
-						   style="width: 150px;"
-						   required>
-				</td>
-				<td class="text-right">${percentage}%</td>
-				<td class="text-right">${format_number(amount, doc.number_format, 2)}</td>
-			`;
-			tbody.appendChild(row);
+	terms(){
+		$(".terms-feedback").on("change", function(){
+			doc.terms = $(this).val();
 		});
 	}
 
-	showPaymentSchedule() {
-		const container = document.getElementById('paymentScheduleContainer');
-		if (container) {
-			container.style.display = 'block';
-		}
-	}
-
-	hidePaymentSchedule() {
-		const container = document.getElementById('paymentScheduleContainer');
-		if (container) {
-			container.style.display = 'none';
-		}
-	}
-
-	// UPDATED: Return grand total with tax
-	get_final_amount(){
-		return doc.grand_total_with_tax || doc.grand_total || 0;
+	navigate_quotations(){
+		$('.quotations').click(function(){
+			window.location.href = "/quotations/" + $(this).attr('idx');
+		});
 	}
 };
