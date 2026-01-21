@@ -101,12 +101,6 @@
         .item-row .text-right, .item-row .text-center { text-align: left !important; }
         .section-content { padding: 1rem; }
     }
-
-    /* Original Payment Schedule Table Styles */
-    .payment-schedule-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; border-radius: 6px; overflow: hidden; }
-    .payment-schedule-table thead th { background-color: #f8f9fa; font-weight: 500; padding: 12px; border: 1px solid #dee2e6; text-align: left; white-space: nowrap; color: #5a5c69; }
-    .payment-schedule-table tbody td { padding: 12px; border: 1px solid #dee2e6; vertical-align: middle; }
-    .payment-schedule-table tbody tr:hover { background-color: #f1f3f5; }
 </style>
 
 <!-- Document Overview -->
@@ -148,13 +142,12 @@
 <div class="section-card">
     <h2 class="section-header"><i class="fas fa-shopping-cart mr-2"></i>Items & Pricing</h2>
     <div class="section-content">
-        <!-- Desktop Header - Adjusted widths to prevent overlap -->
         <div class="item-header row no-gutters d-none d-md-flex">
             <div class="col-md-3">{{ _("Item") }}</div>
             <div class="col-md-2 text-center">{{ _("Quantity") }}</div>
             <div class="col-md-2 text-right">{{ _("Rate") }}</div>
-            <div class="col-md-2 text-right">{{ _("Discount") }}</div> <!-- 1 to 2 -->
-            <div class="col-md-1 text-right">{{ _("GST") }}</div>      <!-- 2 to 1 -->
+            <div class="col-md-2 text-right">{{ _("Discount") }}</div>
+            <div class="col-md-1 text-right">{{ _("GST") }}</div>
             <div class="col-md-2 text-right">{{ _("Amount") }}</div>
         </div>
 
@@ -185,12 +178,12 @@
                     <span class="metric-value">{{ d.get_formatted("rate") }}</span>
                 </div>
                 
-                <div class="col-md-2 col-6 text-md-right mt-2 mt-md-0"> <!-- 1 to 2 -->
+                <div class="col-md-2 col-6 text-md-right mt-2 mt-md-0">
                     <span class="mobile-label">{{ _("Discount") }}</span>
                     <span class="metric-value">{{ d.get_formatted("discount_percentage") }}</span>
                 </div>
                 
-                <div class="col-md-1 col-6 text-md-right mt-2 mt-md-0"> <!-- 2 to 1 -->
+                <div class="col-md-1 col-6 text-md-right mt-2 mt-md-0">
                     <span class="mobile-label">{{ _("GST") }}</span>
                     <span class="metric-value">{{ d.get_formatted("custom_gst_percent") }}</span>
                 </div>
@@ -215,7 +208,7 @@
     </div>
 </div>
 
-<!-- Payment Terms Section -->
+<!-- Payment Terms Section (Schedule Table Removed) -->
 {% if doc.custom_payment_term_template %}
 <div class="section-card">
     <h2 class="section-header">
@@ -227,35 +220,6 @@
                 <span class="info-label">Payment Terms Template</span>
                 <span class="info-value">{{ doc.custom_payment_term_template }}</span>
             </div>
-        </div>
-
-        <div class="table-responsive">
-            <table class="table payment-schedule-table">
-                <thead>
-                    <tr>
-                        <th><i class="fas fa-tag mr-1"></i>{{ _("Payment Term") }}</th>
-                        <th><i class="fas fa-info-circle mr-1"></i>{{ _("Description") }}</th>
-                        <th><i class="fas fa-calendar-alt mr-1"></i>{{ _("Due Date") }}</th>
-                        <th class="text-right"><i class="fas fa-percentage mr-1"></i>{{ _("Invoice Portion %") }}</th>
-                        <th class="text-right"><i class="fas fa-coins mr-1"></i>{{ _("Payment Amount") }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for value in doc.custom_payment_schedule %}
-                        <tr>
-                            <td><strong>{{ value.payment_term }}</strong></td>
-                            <td>{{ value.description }}</td>
-                            <td>
-                                <span class="badge badge-info">
-                                    {{ frappe.utils.format_date(value.due_date, 'medium') if value.due_date else 'N/A' }}
-                                </span>
-                            </td>
-                            <td class="text-right"><strong>{{ value.invoice_portion }}%</strong></td>
-                            <td class="text-right"><strong>{{ value.payment_amount }}</strong></td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
         </div>
     </div>
 </div>
