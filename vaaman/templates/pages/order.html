@@ -253,11 +253,12 @@
     <h2 class="section-header"><i class="fas fa-list-alt mr-2"></i>Terms & Conditions</h2>
     <div class="section-content">
         <div class="terms-content p-3 rounded bg-light border">
-            {{ doc.terms | nl2br }}
+            {{ doc.terms | safe }}
         </div>
     </div>
 </div>
 {% endif %}
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
 {% endblock %}
