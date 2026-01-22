@@ -57,18 +57,26 @@
 <script>
 frappe.ready(function () {
 
-	// LOAD GST LINK FIELD OPTIONS
+	// LOAD ONLY GST ITEM TAX TEMPLATES
 	frappe.call({
 		method: "frappe.client.get_list",
 		args: {
 			doctype: "Item Tax Template",
 			fields: ["name"],
+			filters: [
+				["company", "like", doc.company],
+				["disabled", "=", 0],
+				["name", "like", "%GST%"]
+			],
 			limit_page_length: 100
 		},
 		callback: function (r) {
 			if (r.message) {
 				$(".rfq-gst").each(function () {
 					let select = $(this);
+					select.empty();
+					select.append(`<option value="">Select GST</option>`);
+
 					r.message.forEach(row => {
 						select.append(
 							`<option value="${row.name}">${row.name}</option>`
@@ -78,6 +86,8 @@ frappe.ready(function () {
 			}
 		}
 	});
+
+
 
 	// LIVE AMOUNT CALCULATION
 	$(document).on("input", ".rfq-qty, .rfq-rate, .rfq-discount", function () {
@@ -107,4 +117,5 @@ frappe.ready(function () {
 		return items;
 	};
 });
+
 </script>
