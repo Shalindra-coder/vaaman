@@ -1,6 +1,8 @@
 {% extends "templates/web.html" %}
 {% from "templates/includes/rfq/rfq_macros.html" import item_name_and_description %}
 
+
+
 {% block breadcrumbs %}
     {% include "templates/includes/breadcrumbs.html" %}
 {% endblock %}
@@ -51,8 +53,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
   // --- GST aur Totals Calculation Function ---
   function calculateTotals() {
-    var totalNetTotal = 0;
-    var totalGstAmount = 0;
+    var sumBaseNetTotal = 0; // Total amount without GST
+    var sumGstAmount = 0;    // Total GST amount
     
     document.querySelectorAll('.rfq-item-row').forEach(function(row) {
       var qty = parseFloat(row.querySelector('.item-qty')?.textContent || 0);
@@ -60,33 +62,53 @@ document.addEventListener("DOMContentLoaded", function() {
       var discountPercent = parseFloat(row.querySelector('.item-discount')?.value || 0);
       var gstPercent = parseFloat(row.querySelector('.item-gst')?.value || 0);
       
+      // 1. Calculate Item Net Amount (Rate * Qty - Discount)
       var amountBeforeTax = qty * rate;
       var discountAmount = (amountBeforeTax * discountPercent) / 100;
-      var netAmount = amountBeforeTax - discountAmount;
+      var itemNetAmount = amountBeforeTax - discountAmount;
       
-      var itemGstAmount = (netAmount * gstPercent) / 100;
-      var finalItemTotal = netAmount + itemGstAmount;
+      // 2. Calculate Item GST
+      var itemGstAmount = (itemNetAmount * gstPercent) / 100;
+      var finalItemRowTotal = itemNetAmount + itemGstAmount;
       
+      // 3. Update Row UI
       var amountDisplay = row.querySelector('.item-amount');
-      if (amountDisplay) amountDisplay.textContent = finalItemTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
+      if (amountDisplay) amountDisplay.textContent = finalItemRowTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
       
-      totalNetTotal += netAmount;
-      totalGstAmount += itemGstAmount;
+      // 4. Accumulate totals
+      sumBaseNetTotal += itemNetAmount;
+      sumGstAmount += itemGstAmount;
     });
 
+    // --- FIX: Net Total (Items + GST) calculation ---
+    // Yeh value freight change hone par nahi badlegi
+    var netTotalIncludingGST = sumBaseNetTotal + sumGstAmount;
+    
     var netTotalDisplay = document.querySelector('.tax-grand-total');
-    if (netTotalDisplay) netTotalDisplay.textContent = totalNetTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    if (netTotalDisplay) {
+        netTotalDisplay.textContent = netTotalIncludingGST.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    }
 
     var gstTotalDisplay = document.getElementById('total_gst_amount');
-    if (gstTotalDisplay) gstTotalDisplay.textContent = totalGstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    if (gstTotalDisplay) {
+        gstTotalDisplay.textContent = sumGstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    }
 
+    // --- Freight Calculation ---
     var freightElem = document.getElementById('freight_percentage');
     var freightPercent = freightElem ? parseFloat(freightElem.value || "0") : 0;
-    var freightAmount = (totalNetTotal * freightPercent) / 100;
+    
+    // Freight amount calculation (usually on base total)
+    var freightAmount = (sumBaseNetTotal * freightPercent) / 100;
 
-    var grandTotal = totalNetTotal + totalGstAmount + freightAmount;
+    // --- Final Grand Total ---
+    // Grand Total = (Net Total with GST) + Freight
+    var grandTotal = netTotalIncludingGST + freightAmount;
+    
     var grandTotalElem = document.getElementById('grand_total_with_tax');
-    if (grandTotalElem) grandTotalElem.value = grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    if (grandTotalElem) {
+      grandTotalElem.value = grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    }
   }
 
   document.addEventListener('input', function(e) {
@@ -105,8 +127,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
 {% block page_content %}
 <style>
-    /* --- Full Width Force Fix --- */
-    /* This targets the ERPNext standard container and forces it to take 100% width */
     .container {
         max-width: 100% !important;
         width: 100% !important;
@@ -114,11 +134,7 @@ document.addEventListener("DOMContentLoaded", function() {
         padding-right: 30px !important;
     }
 
-    #rfqMainContent {
-        width: 100% !important;
-    }
-
-    /* Standard Styling */
+    #rfqMainContent { width: 100% !important; }
     .form-control { height: 40px !important; border: 1px solid #d1d3e2; border-radius: 6px; font-size: 0.9rem; padding: 0.5rem 0.75rem; width: 100%; }
     .section-card { background: #fff; border: 1px solid #e3e6f0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 2rem; overflow: hidden; width: 100%; }
     .section-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 1.5rem; font-size: 1.1rem; font-weight: 600; margin: 0; }
@@ -130,7 +146,6 @@ document.addEventListener("DOMContentLoaded", function() {
     
     #paymentScheduleContainer { display: none !important; }
 
-    /* Responsive adjustments */
     @media (max-width: 992px) {
         .container { padding-left: 15px !important; padding-right: 15px !important; }
     }
@@ -154,7 +169,6 @@ document.addEventListener("DOMContentLoaded", function() {
         <h2 class="section-header"><i class="fas fa-calculator mr-2"></i>{{ _("Pricing Section") }}</h2>
         <div class="section-content">
             <div style="width: 100%;" id="rfq-items">
-                <!-- Table Header -->
                 <div class="row cart-item-header font-weight-bold text-muted d-none d-sm-flex">
                     <div class="col-sm-4">{{ _("Items") }}</div>
                     <div class="col-sm-1 text-right">{{ _("Qty") }}</div>
@@ -163,7 +177,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     <div style= "margin-left:10px" class="col-sm-2 text-right">{{ _("GST %") }}</div>
                     <div class="col-sm-2 text-right">{{ _("Total Amount") }}</div>
                 </div>
-                <!-- Row Items -->
                 {% if doc.items %}
                 <div class="rfq-items">
                     {% include "templates/includes/rfq/rfq_items.html" %}
@@ -175,7 +188,7 @@ document.addEventListener("DOMContentLoaded", function() {
             <div class="row mt-4">
                 <div class="col-md-5 offset-md-7 p-4 bg-light border rounded">
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="font-weight-bold">{{ _("Net Total (Excl. Tax):") }}</span>
+                        <span class="font-weight-bold">{{ _("Net Total (Incl. Discount & GST)") }}</span>
                         <span>{{ doc.currency_symbol }} <span class="tax-grand-total">0.00</span></span>
                     </div>
                     <div class="d-flex justify-content-between mb-3 text-info">
@@ -188,7 +201,7 @@ document.addEventListener("DOMContentLoaded", function() {
                             <input type="number" step="0.01" class="form-control" id="freight_percentage" placeholder="0.00">
                         </div>
                         <div class="col-6">
-                            <label class="small mb-1 font-weight-bold text-primary">{{ _("Grand Total (Incl. Taxes)") }}</label>
+                            <label class="small mb-1 font-weight-bold text-primary">{{ _("Grand Total (Incl. Freight)") }}</label>
                             <input type="text" class="form-control total-display" id="grand_total_with_tax" readonly>
                         </div>
                     </div>
