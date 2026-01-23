@@ -1,5 +1,4 @@
 // Copyright (c) 2015, Frappe Technologies Pvt. Ltd.
-
 window.doc = {{ doc.as_json() }};
 
 $(document).ready(function() {
@@ -80,7 +79,7 @@ rfq = class rfq {
 
 	update_freight_charges(){
 		let me = this;
-		$(document).on("change", "#freight_percentage", function(){
+		$(document).on("input change", "#freight_percentage", function(){
 			me.calculate_all_totals();
 		});
 	}
@@ -88,8 +87,8 @@ rfq = class rfq {
 	/* ============= CORE CALCULATION ============= */
 
 	calculate_all_totals(){
-		let total_net_amount = 0;
-		let total_gst_amount = 0;
+		let total_pure_net = 0; // Amount without GST
+		let total_gst_sum = 0;  // Total GST only
 
 		doc.items.forEach(function(item){
 			let idx = item.idx;
@@ -98,59 +97,66 @@ rfq = class rfq {
 			let rate = flt($(`.rfq-rate[data-idx="${idx}"]`).val());
 			let discount_p = flt($(`.rfq-discount[data-idx="${idx}"]`).val());
 
-			// STEP 1: Base amount
+			// 1. Calculate Amount before Discount
 			let base_amount = qty * rate;
 
-			// STEP 2: Discount
+			// 2. Row Net Amount (After Discount)
 			let row_net_amount = base_amount - (base_amount * (discount_p / 100));
 
-			// STEP 3: GST from Item Tax Template (UI dropdown value)
+			// 3. GST from Template
 			let gst_template = $(`.rfq-gst[data-idx="${idx}"]`).val();
 			let gst_p = extract_gst_percent(gst_template);
 
-			// STEP 4: GST amount
+			// 4. GST amount for this row
 			let row_gst_amount = (row_net_amount * gst_p) / 100;
 
-			// STEP 5: Row total
-			let row_total = row_net_amount + row_gst_amount;
+			// 5. Total Row Display (Net + GST)
+			let row_total_with_tax = row_net_amount + row_gst_amount;
 
-			// Save to doc object
+			// Save to doc object for submission
 			item.qty = qty;
 			item.rate = rate;
 			item.custom_discount_ = discount_p;
 			item.item_tax_template = gst_template; 
-			item.custom_gst_percent = gst_template; // 🔥 Custom Link field ke liye value assign ki
+			item.custom_gst_percent = gst_template; 
 			item.amount = row_net_amount;
 			item.item_gst_amount = row_gst_amount;
 
-			// UI update
+			// UI Update: Individual Row Total
 			$(`.rfq-amount[data-idx="${idx}"]`)
-				.text(format_number(row_total, doc.number_format, 2));
+				.text(format_number(row_total_with_tax, doc.number_format, 2));
 
-			total_net_amount += row_net_amount;
-			total_gst_amount += row_gst_amount;
+			total_pure_net += row_net_amount;
+			total_gst_sum += row_gst_amount;
 		});
 
-		// STEP 6: Freight on (Net + GST)
-		let net_plus_gst = total_net_amount + total_gst_amount;
+		// --- Calculation for Summary ---
+		
+		// 1. Fixed Net Total (Items + GST) - This won't change with freight
+		let fixed_net_total_including_gst = total_pure_net + total_gst_sum;
+
+		// 2. Freight Calculation
 		let freight_p = flt($('#freight_percentage').val());
-		let freight_amount = (net_plus_gst * freight_p) / 100;
+		let freight_amount = (total_pure_net * freight_p) / 100;
 
-		// STEP 7: Grand Total
-		let grand_total = net_plus_gst + freight_amount;
+		// 3. Grand Total (Fixed Net Total + Freight)
+		let grand_total = fixed_net_total_including_gst + freight_amount;
 
-		// Save header values
-		doc.net_total = total_net_amount;
-		doc.total_gst = total_gst_amount;
+		// Save header values for Doc
+		doc.net_total = total_pure_net;
+		doc.total_gst = total_gst_sum;
 		doc.freight_percentage = freight_p;
 		doc.freight_amount = freight_amount;
 		doc.grand_total = grand_total;
 
-		// UI SUMMARY
-		$('.tax-net-total').text(format_number(total_net_amount, doc.number_format, 2));
-		$('#display_total_gst').text(format_number(total_gst_amount, doc.number_format, 2));
-		$('#display_freight_amount').text(format_number(freight_amount, doc.number_format, 2));
-		$('.tax-grand-total').text(format_number(grand_total, doc.number_format, 2));
+		// UI SUMMARY UPDATES
+		// Label: Net Total (Included Discount and GST)
+		$('.tax-grand-total').text(format_number(fixed_net_total_including_gst, doc.number_format, 2));
+		
+		// Label: Total GST Amount
+		$('#total_gst_amount').text(format_number(total_gst_sum, doc.number_format, 2));
+		
+		// Label: Grand Total (Incl. Taxes and Freight)
 		$('#grand_total_with_tax').val(format_number(grand_total, doc.number_format, 2));
 	}
 
@@ -159,7 +165,8 @@ rfq = class rfq {
 	submit_rfq(){
 		let me = this;
 
-		$('.btn-lg').click(function(){
+		$(document).on('click', 'button[type="submit"]', function(e){
+			e.preventDefault();
 			me.calculate_all_totals();
 
 			let item_details = doc.items.map(item => ({
@@ -168,7 +175,7 @@ rfq = class rfq {
 				rate: flt(item.rate),
 				custom_discount_: flt(item.custom_discount_),
 				item_tax_template: item.item_tax_template, 
-				custom_gst_percent: item.custom_gst_percent, // 🔥 Supplier Quotation Item table mein jayega
+				custom_gst_percent: item.custom_gst_percent,
 				amount: flt(item.amount),
 				warehouse: item.warehouse
 			}));
@@ -180,7 +187,8 @@ rfq = class rfq {
 				total_gst: flt(doc.total_gst),
 				grand_total: flt(doc.grand_total),
 				payment_terms_template: $('#payment_terms_template').val(),
-				incoterm: $('#encoterm_template').val()
+				incoterm: $('#encoterm_template').val(),
+				notes: $('#document_notes').val()
 			};
 
 			frappe.call({
