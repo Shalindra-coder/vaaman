@@ -1,0 +1,69 @@
+<div class="web-list-item transaction-list-item">
+    <div class="row align-items-center">
+        {% if doc.doctype == 'Request for Quotation' %}
+            <!-- ONLY FOR REQUEST FOR QUOTATION -->
+            <div class="col-sm-3">
+                <span class="list-item-name font-weight-bold">{{ doc.name }}</span>
+                <div class="small text-muted transaction-time">
+                    {{ frappe.utils.global_date_format(doc.transaction_date or doc.creation) }}
+                </div>
+            </div>
+
+
+            
+            <!-- Close On Field -->
+            <div class="col-sm-2 text-center">
+                <div class="small font-weight-bold text-danger">{{ _("Closed On") }}</div>
+                <div class="small text-muted">
+                    {{ frappe.utils.global_date_format(doc.schedule_date) if doc.schedule_date else '' }}
+                </div>
+            </div>
+
+            <div class="col-sm-2">
+                <span class="indicator-pill {{ doc.indicator_color or ("blue" if doc.docstatus==1 else "gray") }} list-item-status">
+                    {{ _(doc.status) }}
+                </span>
+            </div>
+
+            <div class="col-sm-3">
+                <div class="small text-muted items-preview ellipsis">
+                    {{ doc.items_preview }}
+                </div>
+            </div>
+
+            <div class="col-sm-2 text-right font-weight-bold item-total">
+                {{ doc.get_formatted("grand_total") if doc.grand_total else "" }}
+            </div>
+
+        {% else %}
+            <!-- FOR OTHER DOCTYPES (Purchase Order, Invoice etc.) -->
+            <div class="col-sm-4">
+                <span class="list-item-name font-weight-bold">{{ doc.name }}</span>
+                <div class="small text-muted transaction-time"
+                    title="{{ frappe.utils.format_datetime(doc.modified, "medium") }}">
+                    {{ frappe.utils.global_date_format(doc.modified) }}
+                </div>
+            </div>
+            <div class="col-sm-3">
+                <span class="indicator-pill {{ doc.indicator_color or ("blue" if doc.docstatus==1 else "gray") }} list-item-status">
+                    {{ _(doc.status) }}
+                </span>
+            </div>
+            <div class="col-sm-2">
+                <div class="small text-muted items-preview ellipsis ellipsis-width">
+                    {{ doc.items_preview }}
+                </div>
+            </div>
+            {% if doc.get('grand_total') %}
+                <div class="col-sm-3 text-right font-weight-bold item-total">
+                    {{ doc.get_formatted("grand_total") }}
+                </div>
+            {% elif doc.get('rounded_total') %}
+                <div class="col-sm-3 text-right font-weight-bold item-total">
+                    {{ doc.get_formatted("rounded_total") }}
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+    <a class="transaction-item-link" href="/{{ pathname }}/{{ doc.name }}">Link</a>
+</div>

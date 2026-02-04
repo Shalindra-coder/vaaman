@@ -1,19 +1,12 @@
 {% extends "templates/web.html" %}
 {% from "templates/includes/rfq/rfq_macros.html" import item_name_and_description %}
 
-
-
 {% block breadcrumbs %}
     {% include "templates/includes/breadcrumbs.html" %}
 {% endblock %}
 
 {% block header_actions %}
-{% if doc.items %}
-<button class="btn btn-primary btn-sm" type="button">
-    {{ _("Make Quotation") }}
-</button>
-<br>
-{% endif %}
+    <!-- Button yahan se hata kar niche main content mein daal diya hai -->
 {% endblock %}
 
 {% block script %}
@@ -45,16 +38,16 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  // --- Payment Terms (Hardcoded Value) ---
+  // --- Payment Terms ---
   const ptSelect = document.getElementById('payment_terms_template');
   if (ptSelect) {
-    ptSelect.value = "30 Days";
+    ptSelect.value = "{{ doc.custom_terms_and_conditions or '' }}";
   }
 
-  // --- GST aur Totals Calculation Function ---
+  // --- GST aur Totals Calculation ---
   function calculateTotals() {
-    var sumBaseNetTotal = 0; // Total amount without GST
-    var sumGstAmount = 0;    // Total GST amount
+    var sumBaseNetTotal = 0;
+    var sumGstAmount = 0;
     
     document.querySelectorAll('.rfq-item-row').forEach(function(row) {
       var qty = parseFloat(row.querySelector('.item-qty')?.textContent || 0);
@@ -62,53 +55,34 @@ document.addEventListener("DOMContentLoaded", function() {
       var discountPercent = parseFloat(row.querySelector('.item-discount')?.value || 0);
       var gstPercent = parseFloat(row.querySelector('.item-gst')?.value || 0);
       
-      // 1. Calculate Item Net Amount (Rate * Qty - Discount)
       var amountBeforeTax = qty * rate;
       var discountAmount = (amountBeforeTax * discountPercent) / 100;
       var itemNetAmount = amountBeforeTax - discountAmount;
       
-      // 2. Calculate Item GST
       var itemGstAmount = (itemNetAmount * gstPercent) / 100;
       var finalItemRowTotal = itemNetAmount + itemGstAmount;
       
-      // 3. Update Row UI
       var amountDisplay = row.querySelector('.item-amount');
       if (amountDisplay) amountDisplay.textContent = finalItemRowTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
       
-      // 4. Accumulate totals
       sumBaseNetTotal += itemNetAmount;
       sumGstAmount += itemGstAmount;
     });
 
-    // --- FIX: Net Total (Items + GST) calculation ---
-    // Yeh value freight change hone par nahi badlegi
     var netTotalIncludingGST = sumBaseNetTotal + sumGstAmount;
-    
     var netTotalDisplay = document.querySelector('.tax-grand-total');
-    if (netTotalDisplay) {
-        netTotalDisplay.textContent = netTotalIncludingGST.toLocaleString('en-IN', {minimumFractionDigits: 2});
-    }
+    if (netTotalDisplay) netTotalDisplay.textContent = netTotalIncludingGST.toLocaleString('en-IN', {minimumFractionDigits: 2});
 
     var gstTotalDisplay = document.getElementById('total_gst_amount');
-    if (gstTotalDisplay) {
-        gstTotalDisplay.textContent = sumGstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
-    }
+    if (gstTotalDisplay) gstTotalDisplay.textContent = sumGstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
 
-    // --- Freight Calculation ---
     var freightElem = document.getElementById('freight_percentage');
     var freightPercent = freightElem ? parseFloat(freightElem.value || "0") : 0;
-    
-    // Freight amount calculation (usually on base total)
     var freightAmount = (sumBaseNetTotal * freightPercent) / 100;
-
-    // --- Final Grand Total ---
-    // Grand Total = (Net Total with GST) + Freight
     var grandTotal = netTotalIncludingGST + freightAmount;
     
     var grandTotalElem = document.getElementById('grand_total_with_tax');
-    if (grandTotalElem) {
-      grandTotalElem.value = grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
-    }
+    if (grandTotalElem) grandTotalElem.value = grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
   }
 
   document.addEventListener('input', function(e) {
@@ -127,14 +101,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
 {% block page_content %}
 <style>
-    .container {
-        max-width: 100% !important;
-        width: 100% !important;
-        padding-left: 30px !important;
-        padding-right: 30px !important;
-    }
-
-    #rfqMainContent { width: 100% !important; }
+    .container { max-width: 100% !important; width: 100% !important; padding-left: 30px !important; padding-right: 30px !important; }
     .form-control { height: 40px !important; border: 1px solid #d1d3e2; border-radius: 6px; font-size: 0.9rem; padding: 0.5rem 0.75rem; width: 100%; }
     .section-card { background: #fff; border: 1px solid #e3e6f0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 2rem; overflow: hidden; width: 100%; }
     .section-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 1.5rem; font-size: 1.1rem; font-weight: 600; margin: 0; }
@@ -143,15 +110,12 @@ document.addEventListener("DOMContentLoaded", function() {
     .rfq-item-row { padding: 15px 0; border-bottom: 1px solid #f1f3f9; align-items: center; display: flex; flex-wrap: wrap; width: 100%; }
     .total-display { background: #f8f9fc; border: 2px solid #667eea !important; font-weight: 700; color: #4e73df; text-align: right; }
     .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 0.6rem 1.5rem; }
+    .btn-make-quotation { background: #7c67ef; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 500; }
     
     #paymentScheduleContainer { display: none !important; }
-
-    @media (max-width: 992px) {
-        .container { padding-left: 15px !important; padding-right: 15px !important; }
-    }
 </style>
 
-<!-- Terms & Conditions Overlay -->
+<!-- Terms Overlay Code (Keep as is) -->
 <div id="termsOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:#fff; width:600px; max-width:90%; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.3); overflow:hidden; display:flex; flex-direction:column; max-height:80vh;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:20px; font-weight:600; color:white;">{{ _("Terms & Conditions") }}</div>
@@ -164,6 +128,26 @@ document.addEventListener("DOMContentLoaded", function() {
 </div>
 
 <div id="rfqMainContent" style="display:none;">
+    
+    <!-- Top Row: Closed On and Make Quotation aligned -->
+    <div class="row align-items-end mb-4">
+        <div class="col-md-3">
+            <div class="form-group mb-0">
+                <label class="font-weight-bold text-muted small">{{ _("Closed On") }}</label>
+                <input type="text" class="form-control" 
+                       value="{{ frappe.utils.formatdate(doc.schedule_date) if doc.schedule_date else '' }}" 
+                       readonly style="background-color: #f8f9fc; color: #4e73df; font-weight: 600;">
+            </div>
+        </div>
+        <div class="col-md-9 text-right">
+            {% if doc.items %}
+            <button class="btn btn-make-quotation" type="button">
+                {{ _("Make Quotation") }}
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Pricing Section -->
     <div class="section-card">
         <h2 class="section-header"><i class="fas fa-calculator mr-2"></i>{{ _("Pricing Section") }}</h2>
@@ -184,11 +168,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 {% endif %}
             </div>
 
-            <!-- Calculation Summary Card -->
+            <!-- Calculation Summary -->
             <div class="row mt-4">
                 <div class="col-md-5 offset-md-7 p-4 bg-light border rounded">
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="font-weight-bold">{{ _("Net Total (Excl. Discount & GST)") }}</span>
+                        <span class="font-weight-bold">{{ _("Net Total (Incl. Discount & GST)") }}</span>
                         <span>{{ doc.currency_symbol }} <span class="tax-grand-total">0.00</span></span>
                     </div>
                     <div class="d-flex justify-content-between mb-3 text-info">
@@ -219,7 +203,11 @@ document.addEventListener("DOMContentLoaded", function() {
                     <div class="form-group">
                         <label>{{ _("Payment Terms Template") }}</label>
                         <select class="form-control" id="payment_terms_template">
-                            <option value="30 Days">30 Days</option>
+                            {% if doc.custom_terms_and_conditions %}
+                                <option value="{{ doc.custom_terms_and_conditions }}">{{ doc.custom_terms_and_conditions }}</option>
+                            {% else %}
+                                <option value="">{{ _("Not Specified") }}</option>
+                            {% endif %}
                         </select>
                     </div>
                 </div>
@@ -255,13 +243,14 @@ document.addEventListener("DOMContentLoaded", function() {
         </div>
     </div>
 
-    <!-- Submit Button -->
     <div class="text-center mb-5">
         <button type="submit" class="btn btn-primary btn-lg px-5 shadow">
             <i class="fas fa-paper-plane mr-2"></i>{{ _("Submit Quotation") }}
         </button>
     </div>
 </div>
+
+
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 {% endblock %}

@@ -1,6 +1,8 @@
 import base64
 import json
 
+
+
 import frappe
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 from erpnext.accounts.doctype.payment_request.payment_request import get_accounting_dimensions
@@ -312,8 +314,7 @@ def create_supplier_quotation(**kwargs):
     sq.flags.ignore_validate = True
     sq.run_method("set_missing_values")
     sq.insert(ignore_permissions=True)
-    sq.submit()
-
+    sq.status = "Draft"
     # ATTACHMENT
     attach_file = other_details.get("attach_file")
     if attach_file and isinstance(attach_file, dict) and attach_file.get("content"):
