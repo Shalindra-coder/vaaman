@@ -18,7 +18,7 @@ def get_context(context):
 	context.doc.rfq_links = get_link_quotation(context.doc.supplier, context.doc.name)
 	unauthorized_user(context.doc.supplier)
 	update_supplier_details(context)
-	context.terms_and_conditions = get_terms_and_conditions(context.doc.custom_terms_and_conditions)
+	context.terms_and_conditions = get_terms_and_conditions(context.doc.tc_name)
 	context.payment_terms_template = get_payment_terms()
 	context["title"] = frappe.form_dict.name
 
@@ -88,3 +88,4 @@ def get_payment_terms():
 
 def get_incoterm():
 	return frappe.db.get_all("Incoterm", fields=["name"])
+
