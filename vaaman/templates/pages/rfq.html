@@ -41,7 +41,10 @@ document.addEventListener("DOMContentLoaded", function() {
   // --- Payment Terms ---
   const ptSelect = document.getElementById('payment_terms_template');
   if (ptSelect) {
-    ptSelect.value = "{{ doc.custom_terms_and_conditions or '' }}";
+    // Agar server side se selected nahi hua toh JS ke zariye value set karna
+    if("{{ doc.custom_terms_and_conditions }}") {
+        ptSelect.value = "{{ doc.custom_terms_and_conditions }}";
+    }
   }
 
   // --- GST aur Totals Calculation ---
@@ -115,7 +118,7 @@ document.addEventListener("DOMContentLoaded", function() {
     #paymentScheduleContainer { display: none !important; }
 </style>
 
-<!-- Terms Overlay Code (Keep as is) -->
+<!-- Terms Overlay Code -->
 <div id="termsOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:#fff; width:600px; max-width:90%; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.3); overflow:hidden; display:flex; flex-direction:column; max-height:80vh;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:20px; font-weight:600; color:white;">{{ _("Terms & Conditions") }}</div>
@@ -203,11 +206,14 @@ document.addEventListener("DOMContentLoaded", function() {
                     <div class="form-group">
                         <label>{{ _("Payment Terms Template") }}</label>
                         <select class="form-control" id="payment_terms_template">
-                            {% if doc.custom_terms_and_conditions %}
-                                <option value="{{ doc.custom_terms_and_conditions }}">{{ doc.custom_terms_and_conditions }}</option>
-                            {% else %}
-                                <option value="">{{ _("Not Specified") }}</option>
-                            {% endif %}
+                            <option value="">{{ _("Select Payment Term") }}</option>
+                            {# Yahan hum database se saare templates fetch kar rahe hain #}
+                            {% set payment_templates = frappe.get_all("Payment Terms Template", fields=["name"]) %}
+                            {% for pt in payment_templates %}
+                                <option value="{{ pt.name }}" {% if doc.custom_terms_and_conditions == pt.name %}selected{% endif %}>
+                                    {{ pt.name }}
+                                </option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
@@ -249,8 +255,6 @@ document.addEventListener("DOMContentLoaded", function() {
         </button>
     </div>
 </div>
-
-
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 {% endblock %}
