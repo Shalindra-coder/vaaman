@@ -187,6 +187,15 @@ def bulk_make_draft_payment_entries(payment_requests):
 
 
 
+
+
+
+
+
+
+
+
+
 import base64
 import json
 import re
@@ -194,15 +203,17 @@ import frappe
 from frappe.utils import flt
 from frappe.utils.file_manager import save_file
 
+
 @frappe.whitelist()
 def create_supplier_quotation(**kwargs):
+
     # Data Parsing
     data = json.loads(kwargs.get("doc", "{}"))
     item_data = json.loads(kwargs.get("item_details", "[]"))
-    payment_term_data = json.loads(kwargs.get("payment_term_data", "[]")) # Payment terms data
+    payment_term_data = json.loads(kwargs.get("payment_term_data", "[]"))
     other_details = json.loads(kwargs.get("other_details", "{}"))
 
-    # Initializing Doc
+    # Initialize Supplier Quotation
     sq = frappe.new_doc("Supplier Quotation")
     sq.supplier = data.get("supplier")
     sq.terms = data.get("terms")
@@ -212,31 +223,33 @@ def create_supplier_quotation(**kwargs):
     sq.buying_price_list = data.get("buying_price_list") or "Standard Buying"
     sq.status = "Draft"
 
-    # --- Helper function to get % from "GST 18% - PP" ---
+    # Helper: Extract GST % from Template Name
+    # Example: "GST 18% - PP"
     def get_gst_percentage(template_name):
-        if not template_name: return 0.0
+        if not template_name:
+            return 0.0
         match = re.search(r"(\d+(\.\d+)?)", str(template_name))
         return flt(match.group(1)) if match else 0.0
 
-    total_net_amount_exclusive = 0.0 
-    total_gst_amount = 0.0          
+    total_net_amount_exclusive = 0.0
+    total_gst_amount = 0.0
 
     # ITEM CALCULATION
     for item in item_data:
+
         qty = flt(item.get("qty", 0))
-        rate = flt(item.get("rate", 0))
+        rate = flt(item.get("rate", 0))  
         discount_p = flt(item.get("custom_discount_", 0))
-        
+
         gst_template = item.get("custom_gst_percent") or item.get("item_tax_template")
         gst_p = get_gst_percentage(gst_template)
 
-        base_amount = qty * rate
-        row_net_amount = base_amount - (base_amount * (discount_p / 100))
+        #  NO DISCOUNT CALCULATION (Already applied)
+        row_net_amount = qty * rate
+
         row_gst_amount = (row_net_amount * gst_p) / 100
-        
-        # GST Included in row amount as requested
         row_final_total_inclusive = row_net_amount + row_gst_amount
-        
+
         total_net_amount_exclusive += row_net_amount
         total_gst_amount += row_gst_amount
 
@@ -247,7 +260,7 @@ def create_supplier_quotation(**kwargs):
             "discount_percentage": discount_p,
             "warehouse": item.get("warehouse"),
             "request_for_quotation": data.get("name"),
-            "custom_gst_percent": gst_template, 
+            "custom_gst_percent": gst_template,
             "item_tax_template": gst_template,
             "amount": row_final_total_inclusive,
             "base_amount": row_final_total_inclusive,
@@ -259,6 +272,7 @@ def create_supplier_quotation(**kwargs):
     net_plus_gst = total_net_amount_exclusive + total_gst_amount
     freight_p = flt(other_details.get("freight_percentage", 0))
     freight_amount = (net_plus_gst * freight_p) / 100
+
     grand_total = net_plus_gst + freight_amount
 
     # HEADER TOTALS
@@ -266,13 +280,13 @@ def create_supplier_quotation(**kwargs):
     sq.total_taxes_and_charges = total_gst_amount + freight_amount
     sq.grand_total = grand_total
     sq.base_grand_total = grand_total
-    sq.custom_freight_ = freight_p 
+    sq.custom_freight_ = freight_p
 
-    # TAXES TABLE
+    # TAX TABLE
     if total_gst_amount > 0:
         sq.append("taxes", {
             "charge_type": "Actual",
-            "account_head": "Output Tax GST - PP", 
+            "account_head": "Output Tax GST - PP",
             "tax_amount": total_gst_amount,
             "description": "Total GST Included in Items",
             "category": "Total"
@@ -287,16 +301,16 @@ def create_supplier_quotation(**kwargs):
             "category": "Total"
         })
 
-    # --- RESTORED PAYMENT TERMS LOGIC ---
+    # PAYMENT TERMS
     payment_template = other_details.get("payment_terms_template")
+
     if payment_template:
-        sq.custom_payment_term_template = payment_template # Custom field for template
-        
+        sq.custom_payment_term_template = payment_template
+
         for term in payment_term_data:
-            # Clean percentage and amount strings
             portion = flt(str(term.get("percentage", "0")).replace("%", "").strip())
             amt = flt(str(term.get("amount", "0")).replace(",", "").strip())
-            
+
             sq.append("custom_payment_schedule", {
                 "payment_term": term.get("paymentTerm"),
                 "description": term.get("description"),
@@ -305,18 +319,21 @@ def create_supplier_quotation(**kwargs):
                 "payment_amount": amt
             })
 
-    # OTHER FIELDS
+    # INCOTERM
     incoterm = other_details.get("incoterm") or other_details.get("Encoterm")
+
     if incoterm and incoterm != "Incoterm":
         sq.incoterm = incoterm
 
-    # SAVE & SUBMIT
+    # SAVE DOCUMENT
     sq.flags.ignore_validate = True
     sq.run_method("set_missing_values")
     sq.insert(ignore_permissions=True)
     sq.status = "Draft"
-    # ATTACHMENT
+
+    # FILE ATTACHMENT
     attach_file = other_details.get("attach_file")
+
     if attach_file and isinstance(attach_file, dict) and attach_file.get("content"):
         try:
             file_name = attach_file.get("file_name")
@@ -326,4 +343,5 @@ def create_supplier_quotation(**kwargs):
             frappe.log_error(f"Attachment Error: {str(e)}")
 
     frappe.db.commit()
+
     return sq.name
