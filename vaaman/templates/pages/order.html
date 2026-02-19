@@ -175,12 +175,25 @@
                 
                 <div class="col-md-2 col-6 text-md-right mt-3 mt-md-0">
                     <span class="mobile-label">{{ _("Rate") }}</span>
-                    <span class="metric-value">{{ d.get_formatted("rate") }}</span>
+                    <span class="metric-value">
+                        {# FIXED LOGIC: Back-calculating gross rate from discount percentage #}
+                        {% if d.discount_percentage and d.discount_percentage < 100 %}
+                            {% set gross_rate = d.rate / (1 - (d.discount_percentage / 100.0)) %}
+                            {{ frappe.format(gross_rate, {"fieldtype": "Currency", "currency": doc.currency}) }}
+                        {% elif d.discount_amount and d.qty %}
+                            {% set gross_rate = (d.amount + d.discount_amount) / d.qty %}
+                            {{ frappe.format(gross_rate, {"fieldtype": "Currency", "currency": doc.currency}) }}
+                        {% else %}
+                            {{ d.get_formatted("rate") }}
+                        {% endif %}
+                    </span>
                 </div>
                 
                 <div class="col-md-2 col-6 text-md-right mt-2 mt-md-0">
                     <span class="mobile-label">{{ _("Discount") }}</span>
-                    <span class="metric-value">{{ d.get_formatted("discount_percentage") }}</span>
+                    <span class="metric-value">
+                        {{ d.get_formatted("discount_percentage") }}
+                    </span>
                 </div>
                 
                 <div class="col-md-1 col-6 text-md-right mt-2 mt-md-0">
@@ -208,7 +221,7 @@
     </div>
 </div>
 
-<!-- Payment Terms Section (Schedule Table Removed) -->
+<!-- Payment Terms Section -->
 {% if doc.custom_payment_term_template %}
 <div class="section-card">
     <h2 class="section-header">
