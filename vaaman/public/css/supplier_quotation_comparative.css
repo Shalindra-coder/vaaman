@@ -1,0 +1,64 @@
+
+#custom-report.custom-table{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+
+}
+
+#custom-report .custom-table th,
+#custom-report .custom-table td {
+  border: 1px solid #ccc;
+ 
+  text-align: center;
+  padding: 3px;
+  ;
+
+}
+
+#custom-report .custom-table th {
+  background: #1b1e3f;
+  color: white;
+  font-weight: 600;
+  padding: 15px;
+  border: 1px solid #ccc;
+  white-space: nowrap;
+}
+
+
+.hide {
+  display: none !important;
+}
+
+ #custom-report .co-group-header {
+  background-color: #dbeafe;
+  font-weight: bold;
+  text-align: center;
+}
+
+
+
+
+#custom-report .custom-table th:not(:first-child),
+#custom-report .custom-table td:not(:first-child) {
+  width: 160px;   
+ 
+}
+
+
+#custom-report .table-wrapper {
+  overflow-x: auto;
+}
+ 
+
+
+
+
+
+
+
+
+
+
+
