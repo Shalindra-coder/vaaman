@@ -5,8 +5,8 @@
 import frappe
 
 def execute(filters=None):
-    rfq = filters.get("rfq")
-    vendors = get_vendors(rfq)
+    if not filters: filters = {}
+    vendors = get_vendors(filters)
     columns = get_columns(vendors)
     data = get_data(filters, vendors)
     return columns, data
@@ -44,16 +44,25 @@ def get_columns(vendors):
     return columns
 
 
-# ================= HELPERS =================
-def get_vendors(rfq):
+def get_vendors(filters):
+    conds = {"docstatus": 1}
+    
+    if filters.get("rfq"): conds["request_for_quotation"] = filters.get("rfq")
+    if filters.get("company"): conds["company"] = filters.get("company")
+    if filters.get("supplier"): conds["supplier"] = filters.get("supplier")
+    if filters.get("supplier_quotation"): conds["name"] = filters.get("supplier_quotation")
+    
+    # Dates
+    if filters.get("from_date") and filters.get("to_date"):
+        conds["transaction_date"] = ["between", [filters.get("from_date"), filters.get("to_date")]]
+
     vendors = frappe.get_all(
         "Supplier Quotation",
-        filters={"request_for_quotation": rfq, "docstatus": 1},
+        filters=conds,
         fields=["supplier"],
         distinct=True
     )
     return [v.supplier for v in vendors]
-
 
 def get_hsn(item_code):
     return frappe.db.get_value("Item", item_code, "gst_hsn_code") or ""
@@ -91,20 +100,27 @@ def get_freight_amount(sq_name):
     for t in taxes:
         total += t.tax_amount or 0
 
-    return total
+    return round(total,2)
 
-
-#================= DATA =================
 def get_data(filters, vendors):
+    # Filters variable se value nikalna
     rfq = filters.get("rfq")
+    sq_filter = filters.get("supplier_quotation")
+    item_filter = filters.get("item_code")
 
+    sq_conds = {"docstatus": 1}
+    if rfq: sq_conds["request_for_quotation"] = rfq
+    if sq_filter: sq_conds["name"] = sq_filter 
+    if filters.get("company"): sq_conds["company"] = filters.get("company")
+    
     quotations = frappe.get_all(
         "Supplier Quotation",
-        filters={"request_for_quotation": rfq, "docstatus": 1},
+        filters=sq_conds,
         fields=["name", "supplier", "creation"],
         order_by="supplier, creation"
     )
-
+    
+    
     supplier_map = {}
     for q in quotations:
         supplier_map.setdefault(q.supplier, []).append(q)
@@ -118,16 +134,28 @@ def get_data(filters, vendors):
 
         first_q = quotes[0]
         last_q = quotes[-1]
-
+        
+        
+        item_conds = {"parent": first_q.name}
+        if item_filter:
+            item_conds["item_code"] = item_filter
         first_items = frappe.get_all(
             "Supplier Quotation Item",
-            filters={"parent": first_q.name},
+           
+            filters=item_conds,
             fields=["item_code", "item_name", "qty", "uom", "rate", "item_tax_template"]
         )
-
+        
+        
+        last_item_conds = {"parent": last_q.name}
+        if item_filter:
+            last_item_conds["item_code"] = item_filter
+        
+        
         last_items = frappe.get_all(
             "Supplier Quotation Item",
-            filters={"parent": last_q.name},
+           
+            filters=last_item_conds,
             fields=["item_code", "rate"]
         )
 
@@ -172,7 +200,10 @@ def get_data(filters, vendors):
             item["l1_supplier"] = lowest_supplier
 
     data_list = list(item_map.values())
-
+    if not data_list:
+        return []
+    
+    
     # -------- SUMMARY ROWS --------
     basic_row = {"item_description": "Basic Total", "is_summary": 1}
     freight_row = {"item_description": "Freight & Forwarding", "is_summary": 1}
@@ -209,16 +240,16 @@ def get_data(filters, vendors):
 
             line_total = qty * rate
             basic_sum += line_total
-            gst_sum += line_total * gst_percent / 100
+            gst_sum += round(line_total * gst_percent / 100, 2)
 
         freight_amount = get_freight_amount(sq_name)
-        no_gst_total = basic_sum + freight_amount
-        final_total = no_gst_total + gst_sum
+        no_gst_total = round(basic_sum + freight_amount, 2)
+        final_total = round(no_gst_total + gst_sum, 2)
 
-        basic_row[f"{key}_total"] = basic_sum
+        basic_row[f"{key}_total"] = round(basic_sum, 2)
         freight_row[f"{key}_total"] = freight_amount
-        no_gst_row[f"{key}_total"] = no_gst_total
-        gst_row[f"{key}_total"] = gst_sum
+        no_gst_row[f"{key}_total"] =(no_gst_total)
+        gst_row[f"{key}_total"] = round(gst_sum, 2)
         final_row[f"{key}_total"] = final_total
    
     # -------- SUPPLIER RANKING --------

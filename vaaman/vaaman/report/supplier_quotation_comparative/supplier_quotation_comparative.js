@@ -1,7 +1,6 @@
 // Copyright (c) 2026, Pratul Tiwari and contributors
 // For license information, please see license.txt
 
-
 frappe.query_reports["Supplier Quotation Comparative"] = {
   filters: [
     {
@@ -9,73 +8,135 @@ frappe.query_reports["Supplier Quotation Comparative"] = {
       label: __("Request for Quotation"),
       fieldtype: "Link",
       options: "Request for Quotation",
-      reqd: 1
+      reqd: 1,
+
+    },
+    {
+      fieldname: "company",
+      label: __("Company"),
+      fieldtype: "Link",
+      options: "Company",
+
+    },
+    {
+      fieldname: "from_date",
+      label: __("From Date"),
+      fieldtype: "Date",
+      default: frappe.datetime.add_months(frappe.datetime.get_today(), -1),
+
+    },
+    {
+      fieldname: "to_date",
+      label: __("To Date"),
+      fieldtype: "Date",
+      default: frappe.datetime.get_today(),
+
+    },
+    {
+      fieldname: "item_code",
+      label: __("Item"),
+      fieldtype: "Link",
+      options: "Item",
+
+    },
+    {
+      fieldname: "supplier",
+      label: __("Supplier"),
+      fieldtype: "Link",
+      options: "Supplier",
+
+    },
+    {
+      fieldname: "supplier_quotation",
+      label: __("Supplier Quotation"),
+      fieldtype: "Link",
+      options: "Supplier Quotation",
+
+    },
+    {
+      fieldname: "group_by",
+      label: __("Categorize By"),
+      fieldtype: "Select",
+      options: ["Categorize by Supplier", "Categorize by Item"],
+      default: "Categorize by Supplier",
+
     }
   ],
 
   onload: function (report) {
+
     frappe.require("/assets/vaaman/css/supplier_quotation_comparative.css");
+
   },
 
-  after_datatable_render: function () {
-    render_custom_report();
+
+  refresh: function (report) {
+    if (report.data && report.data.length > 0) {
+      render_custom_report();
+    }
+  },
+
+  after_datatable_render: function (datatable) {
+    if (frappe.query_report.data && frappe.query_report.data.length > 0) {
+
+      render_custom_report();
+    }
   }
 };
 
-// ================= CUSTOM RENDER =================
 
 function render_custom_report() {
   let data = frappe.query_report.data;
   let columns = frappe.query_report.columns;
-
-  if (!data || data.length === 0) return;
-
-
   let wrapper = frappe.query_report.$report[0];
-  if (!wrapper) return;
 
-  wrapper.innerHTML = `
-    <div id="custom-report">
-      <div class="table-wrapper">
-        <table class="custom-table">
-          <thead id="custom-thead"></thead>
-          <tbody id="custom-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  `;
+  if (!wrapper || !data || data.length === 0) return;
+
+
+  $(wrapper).find(".no-result").hide();
+  $(wrapper).find(".datatable").hide();
+
+
+  if ($(wrapper).find("#custom-report").length === 0) {
+    $(wrapper).append(`
+            <div id="custom-report">
+                <div class="table-wrapper">
+                    <table class="custom-table">
+                        <thead id="custom-thead"></thead>
+                        <tbody id="custom-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        `);
+  }
 
   build_table(columns, data);
 }
 
-// ================= BUILD TABLE =================
-
-
-
+// --- TABLE BUILDING LOGIC ---
 function build_table(columns, data) {
   let thead = document.getElementById("custom-thead");
   let tbody = document.getElementById("custom-tbody");
+  if (!thead || !tbody) return;
 
-  // -------- SUPPLIER GROUPING --------
+  // Supplier grouping logic
   let supplier_map = {};
   columns.forEach(col => {
     if (col.supplier_name) {
-      if (!supplier_map[col.supplier_name]) {
-        supplier_map[col.supplier_name] = [];
-      }
+      if (!supplier_map[col.supplier_name]) supplier_map[col.supplier_name] = [];
       supplier_map[col.supplier_name].push(col);
     }
   });
 
-  // -------- HEADER ROW 1 --------
-  let h1 = "<tr>";
-  h1 += `<th rowspan="2">S. No</th>
-         <th rowspan="2">Item Description</th>
-         <th rowspan="2">QTY</th>
-         <th rowspan="2">UOM</th>
-         <th rowspan="2">HSN</th>
-         <th rowspan="2">GST %</th>
-         <th rowspan="2">LPP Rate</th>`;
+  // Header Row 1
+  let h1 = `<tr>
+        <th rowspan="2">S. No</th>
+        <th rowspan="2">Item Description</th>
+        <th rowspan="2">QTY</th>
+        <th rowspan="2">UOM</th>
+        <th rowspan="2">HSN</th>
+        <th rowspan="2">GST %</th>
+        <th rowspan="2">LPP Rate</th>`;
 
   Object.keys(supplier_map).forEach(supplier => {
     h1 += `<th colspan="3" class="co-group-header">${supplier}</th>`;
@@ -100,7 +161,7 @@ function build_table(columns, data) {
 
     // ================= SUMMARY ROW =================
     if (row.is_summary) {
-     
+
       tr += `
         <tr style="
             font-weight:500;
@@ -113,63 +174,66 @@ function build_table(columns, data) {
 ">
       `;
 
-      
+
       tr += `
         <td colspan="7" style="text-align:left;padding:4px;">
           ${row.item_description}
         </td>
       `;
 
-    
+
       Object.values(supplier_map).forEach(cols => {
 
-  // find total column of current supplier
-  let total_col = cols.find(c => c.fieldname.endsWith("_total"));
+        // find total column of current supplier
+        let total_col = cols.find(c => c.fieldname.endsWith("_total"));
 
-  let val = "";
+        let val = "";
 
-  if (total_col) {
+        if (total_col) {
 
-    // Payment Terms row
-    if (row.item_description === "Payment Terms") {
-      let payment_field = total_col.fieldname.replace("_total", "_payment_terms");
-      val = row[payment_field] || "";
-    }
+          // Payment Terms row
+          if (row.item_description === "Payment Terms") {
+            let payment_field = total_col.fieldname.replace("_total", "_payment_terms");
+            val = row[payment_field] || "";
+          }
 
-    // Incoterms row
-    else if (row.item_description === "IncoTerms") {
-      let inco_field = total_col.fieldname.replace("_total", "_incoterms");
-      val = row[inco_field] || "";
-    }
+          // Incoterms row
+          else if (row.item_description === "IncoTerms") {
+            let inco_field = total_col.fieldname.replace("_total", "_incoterms");
+            val = row[inco_field] || "";
+          }
 
-    // Normal summary rows
-    else {
-      val = row[total_col.fieldname] || "";
-    }
-  }
+          // Normal summary rows
+          else {
+            val = row[total_col.fieldname] || "";
+            if (val && !isNaN(val)) {
+              val = flt(val, 2); // Yahan decimal fix hoga
+            }
+          }
+        }
 
-  if (val) {
-    if (row.item_description === "Supplier Ranking on total with GST") {
-      val = "L" + val;
-      if (val === "L1") {
-        val = `<span style="font-weight:bold;text-align:center">${val}</span>`;
-      }
-    }
+        if (val) {
+          if (row.item_description === "Supplier Ranking on total with GST") {
+            val = "L" + val;
+            if (val === "L1") {
+              val = `<span style="font-weight:bold;text-align:center">${val}</span>`;
+            }
+          }
 
-    else if (
-      row.item_description === "Basic Total" ||
-      row.item_description === "Grand Total With GST"
-    ) {
-      val = frappe.format(val, { fieldtype: "Float" });
-    }
-  }
+          else if (
+            row.item_description === "Basic Total" ||
+            row.item_description === "Grand Total With GST"
+          ) {
+            val = frappe.format(flt(val, 2), { fieldtype: "Float" });
+          }
+        }
 
-  tr += `
+        tr += `
     <td colspan="3" style="text-align:right;">
       ${val}
     </td>
   `;
-});
+      });
 
       // L1 blank
       tr += `<td></td><td></td><td></td>`;
@@ -208,6 +272,4 @@ function build_table(columns, data) {
     tbody.innerHTML += tr;
   });
 }
-
-
 
