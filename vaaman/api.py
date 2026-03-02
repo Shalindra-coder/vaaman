@@ -190,8 +190,6 @@ def bulk_make_draft_payment_entries(payment_requests):
 
 
 
-
-
 import base64
 import json
 import re
@@ -233,37 +231,31 @@ def create_supplier_quotation(**kwargs):
     for item in item_data:
 
         qty = flt(item.get("qty", 0))
-        rate = flt(item.get("rate", 0))  
+        rate = flt(item.get("rate", 0))  # Rate already discounted
         discount_p = flt(item.get("custom_discount_", 0))
 
         gst_template = item.get("custom_gst_percent") or item.get("item_tax_template")
         gst_p = get_gst_percentage(gst_template)
 
-        # --- FIX START: DISCOUNT CALCULATION ---
-        # Pehle net_rate nikalenge (Rate after discount)
-        net_rate = rate * (1 - (discount_p / 100))
+        # Rate discounted hai, isliye direct rate ko net_rate mana gaya hai
+        net_rate = rate 
         
-        # Row Net Amount (Qty * Net Rate) - Bina GST ke
+        # Row Net Amount (Qty * Net Rate)
         row_net_amount = qty * net_rate
-        # --- FIX END ---
 
         row_gst_amount = (row_net_amount * gst_p) / 100
         
-        # Note: ERPNext mein 'amount' field usually Qty * Rate hota hai (before discount)
-        # Lekin 'net_amount' field Qty * Net Rate hota hai.
-        line_total_before_tax = row_net_amount 
-
         total_net_amount_exclusive += row_net_amount
         total_gst_amount += row_gst_amount
 
         sq.append("items", {
             "item_code": item.get("item_code"),
             "qty": qty,
-            "rate": rate, # Original Rate
+            "rate": rate, 
             "discount_percentage": discount_p,
-            "net_rate": net_rate, # Rate after discount
-            "amount": qty * rate, # Total before discount
-            "net_amount": row_net_amount, # Total after discount (Actual Value)
+            "net_rate": net_rate, 
+            "amount": qty * rate, 
+            "net_amount": row_net_amount, 
             "warehouse": item.get("warehouse"),
             "request_for_quotation": data.get("name"),
             "custom_gst_percent": gst_template,
@@ -271,13 +263,13 @@ def create_supplier_quotation(**kwargs):
             "base_net_amount": row_net_amount
         })
 
-    # FREIGHT CALCULATION
-    # GST add karne ke baad freight calculate hoga (jaisa aapka original logic tha)
-    net_plus_gst = total_net_amount_exclusive + total_gst_amount
+    # --- FIX START: FREIGHT CALCULATION ON NET TOTAL ONLY ---
     freight_p = flt(other_details.get("freight_percentage", 0))
-    freight_amount = (net_plus_gst * freight_p) / 100
+    # Freight calculate ho raha hai sirf total_net_amount_exclusive par (Bina GST ke)
+    freight_amount = (total_net_amount_exclusive * freight_p) / 100
 
-    grand_total = net_plus_gst + freight_amount
+    grand_total = total_net_amount_exclusive + total_gst_amount + freight_amount
+    # --- FIX END ---
 
     # HEADER TOTALS
     sq.net_total = total_net_amount_exclusive
