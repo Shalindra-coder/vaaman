@@ -9,14 +9,12 @@ $(document).ready(function() {
 	doc.buying_price_list = "{{ doc.buying_price_list }}";
 });
 
-
+// Helper: GST percentage nikalne ke liye
 function extract_gst_percent(gst_template) {
 	if (!gst_template) return 0;
-
 	let match = gst_template.match(/(\d+(\.\d+)?)\s*%/);
 	return match ? flt(match[1]) : 0;
 }
-
 
 rfq = class rfq {
 
@@ -39,7 +37,6 @@ rfq = class rfq {
 			$(this).select();
 		});
 	}
-
 
 	change_qty(){
 		let me = this;
@@ -78,10 +75,9 @@ rfq = class rfq {
 		});
 	}
 
-
 	calculate_all_totals(){
-		let total_pure_net = 0;
-		let total_gst_sum = 0;
+		let total_pure_net = 0; // Discount ke baad ka total (Bina GST)
+		let total_gst_sum = 0;  // Sabhi items ke GST ka sum
 
 		doc.items.forEach(function(item){
 			let idx = item.idx;
@@ -90,38 +86,37 @@ rfq = class rfq {
 			let rate = flt($(`.rfq-rate[data-idx="${idx}"]`).val());
 			let discount_p = flt($(`.rfq-discount[data-idx="${idx}"]`).val());
 
+			// 1. Calculate Discounted Net Amount (Before Tax)
 			let base_amount = qty * rate;
+			let row_net_amount = base_amount * (1 - (discount_p / 100));
 
-			let row_net_amount = base_amount - (base_amount * (discount_p / 100));
-
+			// 2. Calculate GST for Row
 			let gst_template = $(`.rfq-gst[data-idx="${idx}"]`).val();
 			let gst_p = extract_gst_percent(gst_template);
-
 			let row_gst_amount = (row_net_amount * gst_p) / 100;
 
-			let row_total_with_tax = row_net_amount + row_gst_amount;
-
 			item.qty = qty;
-			item.rate = rate;   //  Calculation same, original rate yahin rahega
+			item.rate = rate; 
 			item.custom_discount_ = discount_p;
 			item.item_tax_template = gst_template; 
 			item.custom_gst_percent = gst_template; 
-			item.amount = row_net_amount;
+			item.amount = row_net_amount; // Backend/UI ke liye exclusive amount
 			item.item_gst_amount = row_gst_amount;
 
+			// UI UPDATE: Item Row mein sirf Discounted Net (Bina GST) dikhega
 			$(`.rfq-amount[data-idx="${idx}"]`)
-				.text(format_number(row_total_with_tax, doc.number_format, 2));
+				.text(format_number(row_net_amount, doc.number_format, 2));
 
 			total_pure_net += row_net_amount;
 			total_gst_sum += row_gst_amount;
 		});
 
-		let fixed_net_total_including_gst = total_pure_net + total_gst_sum;
-
+		// --- CHANGED LOGIC: Freight ab sirf Net Total par calculate hoga ---
 		let freight_p = flt($('#freight_percentage').val());
-		let freight_amount = (total_pure_net * freight_p) / 100;
+		let freight_amount = (total_pure_net * freight_p) / 100; 
 
-		let grand_total = fixed_net_total_including_gst + freight_amount;
+		// Grand Total = Net Total + GST Total + Freight Amount
+		let grand_total = total_pure_net + total_gst_sum + freight_amount;
 
 		doc.net_total = total_pure_net;
 		doc.total_gst = total_gst_sum;
@@ -129,16 +124,16 @@ rfq = class rfq {
 		doc.freight_amount = freight_amount;
 		doc.grand_total = grand_total;
 
+		// UI UPDATES
 		$('.tax-grand-total')
-			.text(format_number(fixed_net_total_including_gst, doc.number_format, 2));
+			.text(format_number(total_pure_net, doc.number_format, 2)); // Subtotal
 		
 		$('#total_gst_amount')
-			.text(format_number(total_gst_sum, doc.number_format, 2));
+			.text(format_number(total_gst_sum, doc.number_format, 2)); // Total GST
 		
 		$('#grand_total_with_tax')
-			.val(format_number(grand_total, doc.number_format, 2));
+			.val(format_number(grand_total, doc.number_format, 2)); // Final Grand Total
 	}
-
 
 	submit_rfq(){
 		let me = this;
@@ -147,24 +142,17 @@ rfq = class rfq {
 			e.preventDefault();
 			me.calculate_all_totals();
 
-			// ***** CHANGED: Only here Rate After Discount bhej rahe hain backend ko *****
 			let item_details = doc.items.map(item => {
-
-				let discounted_rate = flt(item.rate);
-
-				if (flt(item.custom_discount_) > 0) {
-					discounted_rate = flt(item.rate) - 
-						(flt(item.rate) * flt(item.custom_discount_) / 100);
-				}
+				let discounted_rate = flt(item.rate) * (1 - (flt(item.custom_discount_) / 100));
 
 				return {
 					item_code: item.item_code,
 					qty: flt(item.qty),
-					rate: discounted_rate,   // 👈 Backend ko discounted rate jayega
+					rate: discounted_rate, 
 					custom_discount_: flt(item.custom_discount_),
 					item_tax_template: item.item_tax_template, 
 					custom_gst_percent: item.custom_gst_percent,
-					amount: flt(item.amount),
+					amount: flt(item.amount), // Discounted Total (Exclusive of GST)
 					warehouse: item.warehouse
 				};
 			});
