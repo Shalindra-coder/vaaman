@@ -192,10 +192,6 @@ def bulk_make_draft_payment_entries(payment_requests):
 
 
 
-
-
-
-
 import base64
 import json
 import re
@@ -224,7 +220,6 @@ def create_supplier_quotation(**kwargs):
     sq.status = "Draft"
 
     # Helper: Extract GST % from Template Name
-    # Example: "GST 18% - PP"
     def get_gst_percentage(template_name):
         if not template_name:
             return 0.0
@@ -244,11 +239,19 @@ def create_supplier_quotation(**kwargs):
         gst_template = item.get("custom_gst_percent") or item.get("item_tax_template")
         gst_p = get_gst_percentage(gst_template)
 
-        #  NO DISCOUNT CALCULATION (Already applied)
-        row_net_amount = qty * rate
+        # --- FIX START: DISCOUNT CALCULATION ---
+        # Pehle net_rate nikalenge (Rate after discount)
+        net_rate = rate * (1 - (discount_p / 100))
+        
+        # Row Net Amount (Qty * Net Rate) - Bina GST ke
+        row_net_amount = qty * net_rate
+        # --- FIX END ---
 
         row_gst_amount = (row_net_amount * gst_p) / 100
-        row_final_total_inclusive = row_net_amount + row_gst_amount
+        
+        # Note: ERPNext mein 'amount' field usually Qty * Rate hota hai (before discount)
+        # Lekin 'net_amount' field Qty * Net Rate hota hai.
+        line_total_before_tax = row_net_amount 
 
         total_net_amount_exclusive += row_net_amount
         total_gst_amount += row_gst_amount
@@ -256,19 +259,20 @@ def create_supplier_quotation(**kwargs):
         sq.append("items", {
             "item_code": item.get("item_code"),
             "qty": qty,
-            "rate": rate,
+            "rate": rate, # Original Rate
             "discount_percentage": discount_p,
+            "net_rate": net_rate, # Rate after discount
+            "amount": qty * rate, # Total before discount
+            "net_amount": row_net_amount, # Total after discount (Actual Value)
             "warehouse": item.get("warehouse"),
             "request_for_quotation": data.get("name"),
             "custom_gst_percent": gst_template,
             "item_tax_template": gst_template,
-            "amount": row_final_total_inclusive,
-            "base_amount": row_final_total_inclusive,
-            "net_amount": row_final_total_inclusive,
-            "base_net_amount": row_final_total_inclusive
+            "base_net_amount": row_net_amount
         })
 
     # FREIGHT CALCULATION
+    # GST add karne ke baad freight calculate hoga (jaisa aapka original logic tha)
     net_plus_gst = total_net_amount_exclusive + total_gst_amount
     freight_p = flt(other_details.get("freight_percentage", 0))
     freight_amount = (net_plus_gst * freight_p) / 100
@@ -286,7 +290,7 @@ def create_supplier_quotation(**kwargs):
     if total_gst_amount > 0:
         sq.append("taxes", {
             "charge_type": "Actual",
-            "account_head": "Output Tax GST - PP",
+            "account_head": "Input Tax IGST - VEIL",
             "tax_amount": total_gst_amount,
             "description": "Total GST Included in Items",
             "category": "Total"

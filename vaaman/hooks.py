@@ -280,6 +280,7 @@ fixtures = [
 					"Request for Quotation-custom_terms_and_conditions",
 					"Supplier Quotation-custom_freight_",
 					"Supplier Quotation-custom_gst_",
+                    "Supplier Quotation Item-custom_gst_percent",
 					"Supplier Quotation-custom_payment_schedule",
 					"Supplier Quotation-custom_payment_term_template",
 					"Supplier Quotation Item-custom_discount_amount_rfq",
