@@ -281,7 +281,7 @@ def create_supplier_quotation(**kwargs):
     # TAX TABLE
     if total_gst_amount > 0:
         sq.append("taxes", {
-            "charge_type": "Actual",
+            "charge_type": "On Net Total",
             "account_head": "Input Tax IGST - VEIL",
             "tax_amount": total_gst_amount,
             "description": "Total GST Included in Items",
@@ -290,7 +290,7 @@ def create_supplier_quotation(**kwargs):
 
     if freight_amount > 0:
         sq.append("taxes", {
-            "charge_type": "Actual",
+            "charge_type": "On Net Total",
             "account_head": "Freight and Forwarding Charges - PP",
             "tax_amount": freight_amount,
             "description": f"Freight Charges @ {freight_p}%",
