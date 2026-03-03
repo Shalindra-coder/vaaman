@@ -291,7 +291,7 @@ def create_supplier_quotation(**kwargs):
     if freight_amount > 0:
         sq.append("taxes", {
             "charge_type": "On Net Total",
-            "account_head": "Freight and Forwarding Charges - PP",
+            "account_head": "Freight and Forwarding Charges - VEIL",
             "tax_amount": freight_amount,
             "description": f"Freight Charges @ {freight_p}%",
             "category": "Total"
