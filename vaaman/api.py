@@ -189,7 +189,6 @@ def bulk_make_draft_payment_entries(payment_requests):
 
 
 
-
 import base64
 import json
 import re
@@ -231,18 +230,14 @@ def create_supplier_quotation(**kwargs):
     for item in item_data:
 
         qty = flt(item.get("qty", 0))
-        rate = flt(item.get("rate", 0))  # Rate already discounted
+        rate = flt(item.get("rate", 0))
         discount_p = flt(item.get("custom_discount_", 0))
 
         gst_template = item.get("custom_gst_percent") or item.get("item_tax_template")
         gst_p = get_gst_percentage(gst_template)
 
-        # Rate discounted hai, isliye direct rate ko net_rate mana gaya hai
-        net_rate = rate 
-        
-        # Row Net Amount (Qty * Net Rate)
+        net_rate = rate
         row_net_amount = qty * net_rate
-
         row_gst_amount = (row_net_amount * gst_p) / 100
         
         total_net_amount_exclusive += row_net_amount
@@ -251,11 +246,11 @@ def create_supplier_quotation(**kwargs):
         sq.append("items", {
             "item_code": item.get("item_code"),
             "qty": qty,
-            "rate": rate, 
+            "rate": rate,
             "discount_percentage": discount_p,
-            "net_rate": net_rate, 
-            "amount": qty * rate, 
-            "net_amount": row_net_amount, 
+            "net_rate": net_rate,
+            "amount": qty * rate,
+            "net_amount": row_net_amount,
             "warehouse": item.get("warehouse"),
             "request_for_quotation": data.get("name"),
             "custom_gst_percent": gst_template,
@@ -263,13 +258,11 @@ def create_supplier_quotation(**kwargs):
             "base_net_amount": row_net_amount
         })
 
-    # --- FIX START: FREIGHT CALCULATION ON NET TOTAL ONLY ---
+    # FREIGHT CALCULATION
     freight_p = flt(other_details.get("freight_percentage", 0))
-    # Freight calculate ho raha hai sirf total_net_amount_exclusive par (Bina GST ke)
     freight_amount = (total_net_amount_exclusive * freight_p) / 100
 
     grand_total = total_net_amount_exclusive + total_gst_amount + freight_amount
-    # --- FIX END ---
 
     # HEADER TOTALS
     sq.net_total = total_net_amount_exclusive
@@ -278,7 +271,25 @@ def create_supplier_quotation(**kwargs):
     sq.base_grand_total = grand_total
     sq.custom_freight_ = freight_p
 
-    # TAX TABLE
+    # ================================
+    # GST STATE CHECK LOGIC (Moved here)
+    # ================================
+    supplier_gstin = sq.supplier_gstin
+    company_gstin = sq.company_gstin
+
+    if supplier_gstin and company_gstin:
+        supplier_state = supplier_gstin[:2]
+        company_state = company_gstin[:2]
+
+        if supplier_state == company_state:
+            sq.tax_category = "In-State"
+        else:
+            sq.tax_category = "Out-State"
+
+    # ================================
+    # TAXES APPENDING
+    # ================================
+    # GST TAX ROW
     if total_gst_amount > 0:
         sq.append("taxes", {
             "charge_type": "On Net Total",
@@ -288,10 +299,12 @@ def create_supplier_quotation(**kwargs):
             "category": "Total"
         })
 
+    # FREIGHT TAX ROW
     if freight_amount > 0:
         sq.append("taxes", {
             "charge_type": "On Net Total",
             "account_head": "Freight and Forwarding Charges - VEIL",
+            "rate": freight_p,
             "tax_amount": freight_amount,
             "description": f"Freight Charges @ {freight_p}%",
             "category": "Total"
@@ -317,7 +330,6 @@ def create_supplier_quotation(**kwargs):
 
     # INCOTERM
     incoterm = other_details.get("incoterm") or other_details.get("Encoterm")
-
     if incoterm and incoterm != "Incoterm":
         sq.incoterm = incoterm
 
@@ -325,7 +337,6 @@ def create_supplier_quotation(**kwargs):
     sq.flags.ignore_validate = True
     sq.run_method("set_missing_values")
     sq.insert(ignore_permissions=True)
-    sq.status = "Draft"
 
     # FILE ATTACHMENT
     attach_file = other_details.get("attach_file")
