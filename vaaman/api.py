@@ -189,6 +189,8 @@ def bulk_make_draft_payment_entries(payment_requests):
 
 
 
+
+
 import base64
 import json
 import re
@@ -217,7 +219,7 @@ def create_supplier_quotation(**kwargs):
     sq.buying_price_list = data.get("buying_price_list") or "Standard Buying"
     sq.status = "Draft"
 
-    # GST LOGIC
+    # GSTIN Fetch
     s_gstin = data.get("supplier_gstin") or frappe.db.get_value(
         "Supplier", data.get("supplier"), "gstin"
     )
@@ -229,18 +231,6 @@ def create_supplier_quotation(**kwargs):
     sq.supplier_gstin = s_gstin
     sq.company_gstin = c_gstin
 
-    if s_gstin and c_gstin:
-
-        s_state = str(s_gstin).strip()[:2]
-        c_state = str(c_gstin).strip()[:2]
-
-        if s_state == c_state:
-            sq.tax_category = "In-State"
-        else:
-            sq.tax_category = "Out-State"
-
-    else:
-        sq.tax_category = "Out-State"
 
     # GST % Extract Helper
     def get_gst_percentage(template_name):
@@ -303,7 +293,7 @@ def create_supplier_quotation(**kwargs):
             "charge_type": "On Net Total",
             "account_head": "Input Tax IGST - VEIL",
             "tax_amount": total_gst_amount,
-            "description": f"Total GST Amount ({sq.tax_category})",
+            "description": "Total GST Amount",
             "category": "Total"
         })
 
@@ -362,6 +352,26 @@ def create_supplier_quotation(**kwargs):
 
         except Exception as e:
             frappe.log_error(f"Attachment Error: {str(e)}")
+
+
+
+    supplier_gstin = sq.supplier_gstin
+    company_gstin = sq.company_gstin
+
+    if supplier_gstin and company_gstin:
+
+        supplier_state = str(supplier_gstin).strip()[:2]
+        company_state = str(company_gstin).strip()[:2]
+
+        if supplier_state == company_state:
+            tax_category = "In-State"
+        else:
+            tax_category = "Out-State"
+
+    else:
+        tax_category = "Out-State"
+
+    frappe.db.set_value("Supplier Quotation", sq.name, "tax_category", tax_category)
 
     frappe.db.commit()
 
