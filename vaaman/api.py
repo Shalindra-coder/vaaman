@@ -200,33 +200,61 @@ from frappe.utils.file_manager import save_file
 @frappe.whitelist()
 def create_supplier_quotation(**kwargs):
 
-    # Data Parsing
+    # 1. Data Parsing
     data = json.loads(kwargs.get("doc", "{}"))
     item_data = json.loads(kwargs.get("item_details", "[]"))
     payment_term_data = json.loads(kwargs.get("payment_term_data", "[]"))
     other_details = json.loads(kwargs.get("other_details", "{}"))
 
-    # Initialize Supplier Quotation
+    # 2. Initialize Supplier Quotation
     sq = frappe.new_doc("Supplier Quotation")
+
     sq.supplier = data.get("supplier")
-    sq.terms = data.get("terms")
     sq.company = data.get("company")
+    sq.terms = data.get("terms")
     sq.currency = data.get("currency")
     sq.transaction_date = frappe.utils.nowdate()
     sq.buying_price_list = data.get("buying_price_list") or "Standard Buying"
     sq.status = "Draft"
 
-    # Helper: Extract GST % from Template Name
+    # GST LOGIC
+    s_gstin = data.get("supplier_gstin") or frappe.db.get_value(
+        "Supplier", data.get("supplier"), "gstin"
+    )
+
+    c_gstin = data.get("company_gstin") or frappe.db.get_value(
+        "Company", data.get("company"), "gstin"
+    )
+
+    sq.supplier_gstin = s_gstin
+    sq.company_gstin = c_gstin
+
+    if s_gstin and c_gstin:
+
+        s_state = str(s_gstin).strip()[:2]
+        c_state = str(c_gstin).strip()[:2]
+
+        if s_state == c_state:
+            sq.tax_category = "In-State"
+        else:
+            sq.tax_category = "Out-State"
+
+    else:
+        sq.tax_category = "Out-State"
+
+    # GST % Extract Helper
     def get_gst_percentage(template_name):
         if not template_name:
             return 0.0
+
         match = re.search(r"(\d+(\.\d+)?)", str(template_name))
         return flt(match.group(1)) if match else 0.0
+
 
     total_net_amount_exclusive = 0.0
     total_gst_amount = 0.0
 
-    # ITEM CALCULATION
+    # 3. ITEM CALCULATION
     for item in item_data:
 
         qty = flt(item.get("qty", 0))
@@ -239,7 +267,7 @@ def create_supplier_quotation(**kwargs):
         net_rate = rate
         row_net_amount = qty * net_rate
         row_gst_amount = (row_net_amount * gst_p) / 100
-        
+
         total_net_amount_exclusive += row_net_amount
         total_gst_amount += row_gst_amount
 
@@ -258,49 +286,29 @@ def create_supplier_quotation(**kwargs):
             "base_net_amount": row_net_amount
         })
 
-    # FREIGHT CALCULATION
+    # 4. Freight Calculation
     freight_p = flt(other_details.get("freight_percentage", 0))
     freight_amount = (total_net_amount_exclusive * freight_p) / 100
 
-    grand_total = total_net_amount_exclusive + total_gst_amount + freight_amount
-
-    # HEADER TOTALS
     sq.net_total = total_net_amount_exclusive
     sq.total_taxes_and_charges = total_gst_amount + freight_amount
-    sq.grand_total = grand_total
-    sq.base_grand_total = grand_total
+    sq.grand_total = total_net_amount_exclusive + total_gst_amount + freight_amount
+    sq.base_grand_total = sq.grand_total
     sq.custom_freight_ = freight_p
 
-    # ================================
-    # GST STATE CHECK LOGIC (Moved here)
-    # ================================
-    supplier_gstin = sq.supplier_gstin
-    company_gstin = sq.company_gstin
-
-    if supplier_gstin and company_gstin:
-        supplier_state = supplier_gstin[:2]
-        company_state = company_gstin[:2]
-
-        if supplier_state == company_state:
-            sq.tax_category = "In-State"
-        else:
-            sq.tax_category = "Out-State"
-
-    # ================================
-    # TAXES APPENDING
-    # ================================
-    # GST TAX ROW
+    # 5. TAXES CHILD TABLE
     if total_gst_amount > 0:
+
         sq.append("taxes", {
             "charge_type": "On Net Total",
             "account_head": "Input Tax IGST - VEIL",
             "tax_amount": total_gst_amount,
-            "description": "Total GST Included in Items",
+            "description": f"Total GST Amount ({sq.tax_category})",
             "category": "Total"
         })
 
-    # FREIGHT TAX ROW
     if freight_amount > 0:
+
         sq.append("taxes", {
             "charge_type": "On Net Total",
             "account_head": "Freight and Forwarding Charges - VEIL",
@@ -310,13 +318,15 @@ def create_supplier_quotation(**kwargs):
             "category": "Total"
         })
 
-    # PAYMENT TERMS
+    # 6. Payment Terms
     payment_template = other_details.get("payment_terms_template")
 
     if payment_template:
+
         sq.custom_payment_term_template = payment_template
 
         for term in payment_term_data:
+
             portion = flt(str(term.get("percentage", "0")).replace("%", "").strip())
             amt = flt(str(term.get("amount", "0")).replace(",", "").strip())
 
@@ -328,24 +338,28 @@ def create_supplier_quotation(**kwargs):
                 "payment_amount": amt
             })
 
-    # INCOTERM
+    # 7. Incoterm
     incoterm = other_details.get("incoterm") or other_details.get("Encoterm")
+
     if incoterm and incoterm != "Incoterm":
         sq.incoterm = incoterm
 
-    # SAVE DOCUMENT
+    # 8. SAVE DOCUMENT
     sq.flags.ignore_validate = True
     sq.run_method("set_missing_values")
     sq.insert(ignore_permissions=True)
 
-    # FILE ATTACHMENT
+    # 9. FILE ATTACHMENT
     attach_file = other_details.get("attach_file")
 
     if attach_file and isinstance(attach_file, dict) and attach_file.get("content"):
+
         try:
             file_name = attach_file.get("file_name")
             file_content = base64.b64decode(attach_file.get("content"))
+
             save_file(file_name, file_content, sq.doctype, sq.name, is_private=1)
+
         except Exception as e:
             frappe.log_error(f"Attachment Error: {str(e)}")
 
