@@ -76,8 +76,8 @@ rfq = class rfq {
 	}
 
 	calculate_all_totals(){
-		let total_pure_net = 0; // Discount ke baad ka total (Bina GST)
-		let total_gst_sum = 0;  // Sabhi items ke GST ka sum
+		let total_pure_net = 0; 
+		let total_gst_sum = 0;  
 
 		doc.items.forEach(function(item){
 			let idx = item.idx;
@@ -86,11 +86,9 @@ rfq = class rfq {
 			let rate = flt($(`.rfq-rate[data-idx="${idx}"]`).val());
 			let discount_p = flt($(`.rfq-discount[data-idx="${idx}"]`).val());
 
-			// 1. Calculate Discounted Net Amount (Before Tax)
 			let base_amount = qty * rate;
 			let row_net_amount = base_amount * (1 - (discount_p / 100));
 
-			// 2. Calculate GST for Row
 			let gst_template = $(`.rfq-gst[data-idx="${idx}"]`).val();
 			let gst_p = extract_gst_percent(gst_template);
 			let row_gst_amount = (row_net_amount * gst_p) / 100;
@@ -100,10 +98,9 @@ rfq = class rfq {
 			item.custom_discount_ = discount_p;
 			item.item_tax_template = gst_template; 
 			item.custom_gst_percent = gst_template; 
-			item.amount = row_net_amount; // Backend/UI ke liye exclusive amount
+			item.amount = row_net_amount; 
 			item.item_gst_amount = row_gst_amount;
 
-			// UI UPDATE: Item Row mein sirf Discounted Net (Bina GST) dikhega
 			$(`.rfq-amount[data-idx="${idx}"]`)
 				.text(format_number(row_net_amount, doc.number_format, 2));
 
@@ -111,11 +108,9 @@ rfq = class rfq {
 			total_gst_sum += row_gst_amount;
 		});
 
-		// --- CHANGED LOGIC: Freight ab sirf Net Total par calculate hoga ---
 		let freight_p = flt($('#freight_percentage').val());
 		let freight_amount = (total_pure_net * freight_p) / 100; 
 
-		// Grand Total = Net Total + GST Total + Freight Amount
 		let grand_total = total_pure_net + total_gst_sum + freight_amount;
 
 		doc.net_total = total_pure_net;
@@ -124,15 +119,14 @@ rfq = class rfq {
 		doc.freight_amount = freight_amount;
 		doc.grand_total = grand_total;
 
-		// UI UPDATES
 		$('.tax-grand-total')
-			.text(format_number(total_pure_net, doc.number_format, 2)); // Subtotal
+			.text(format_number(total_pure_net, doc.number_format, 2));
 		
 		$('#total_gst_amount')
-			.text(format_number(total_gst_sum, doc.number_format, 2)); // Total GST
+			.text(format_number(total_gst_sum, doc.number_format, 2));
 		
 		$('#grand_total_with_tax')
-			.val(format_number(grand_total, doc.number_format, 2)); // Final Grand Total
+			.val(format_number(grand_total, doc.number_format, 2));
 	}
 
 	submit_rfq(){
@@ -140,11 +134,15 @@ rfq = class rfq {
 
 		$(document).on('click', 'button[type="submit"]', function(e){
 			e.preventDefault();
+			
+			let $btn = $(this);
+			$btn.prop('disabled', true); // Prevent double submission
+
 			me.calculate_all_totals();
 
+			// 1. Prepare Item Details
 			let item_details = doc.items.map(item => {
 				let discounted_rate = flt(item.rate) * (1 - (flt(item.custom_discount_) / 100));
-
 				return {
 					item_code: item.item_code,
 					qty: flt(item.qty),
@@ -152,11 +150,12 @@ rfq = class rfq {
 					custom_discount_: flt(item.custom_discount_),
 					item_tax_template: item.item_tax_template, 
 					custom_gst_percent: item.custom_gst_percent,
-					amount: flt(item.amount), // Discounted Total (Exclusive of GST)
+					amount: flt(item.amount),
 					warehouse: item.warehouse
 				};
 			});
 
+			// 2. Prepare Other Details
 			let other_details = {
 				freight_percentage: flt(doc.freight_percentage),
 				freight_amount: flt(doc.freight_amount),
@@ -168,19 +167,48 @@ rfq = class rfq {
 				notes: $('#document_notes').val()
 			};
 
-			frappe.call({
-				method: "vaaman.api.create_supplier_quotation",
-				args: {
-					doc: doc,
-					item_details: JSON.stringify(item_details),
-					other_details: JSON.stringify(other_details)
-				},
-				callback: function(r){
-					if (r.message) {
-						window.location.href = "/supplier-quotations/" + r.message;
-					}
+			// 3. Handle File Attachment logic
+			let fileInput = document.getElementById('document_attachment');
+			let file = fileInput.files[0];
+
+			if (file) {
+				let reader = new FileReader();
+				reader.onload = function(e) {
+					let file_data = {
+						"filename": file.name,
+						"content": e.target.result
+					};
+					// Send with attachment
+					me.send_to_server(item_details, other_details, file_data, $btn);
+				};
+				reader.readAsDataURL(file);
+			} else {
+				// Send without attachment
+				me.send_to_server(item_details, other_details, null, $btn);
+			}
+		});
+	}
+
+	// Helper function for API call
+	send_to_server(item_details, other_details, attachment_data, $btn) {
+		frappe.call({
+			method: "vaaman.api.create_supplier_quotation",
+			args: {
+				doc: doc,
+				item_details: JSON.stringify(item_details),
+				other_details: JSON.stringify(other_details),
+				attachment: attachment_data ? JSON.stringify(attachment_data) : null
+			},
+			callback: function(r){
+				if (r.message) {
+					window.location.href = "/supplier-quotations/" + r.message;
+				} else {
+					$btn.prop('disabled', false);
 				}
-			});
+			},
+			error: function() {
+				$btn.prop('disabled', false);
+			}
 		});
 	}
 

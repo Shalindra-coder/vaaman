@@ -189,8 +189,6 @@ def bulk_make_draft_payment_entries(payment_requests):
 
 
 
-
-
 import base64
 import json
 import re
@@ -212,6 +210,8 @@ def create_supplier_quotation(**kwargs):
     sq = frappe.new_doc("Supplier Quotation")
 
     sq.supplier = data.get("supplier")
+    sq.custom_note_ = other_details.get("notes") 
+
     sq.company = data.get("company")
     sq.terms = data.get("terms")
     sq.currency = data.get("currency")
@@ -285,7 +285,7 @@ def create_supplier_quotation(**kwargs):
     if incoterm and incoterm != "Incoterm":
         sq.incoterm = incoterm
 
-    # 7. FIRST INSERT (Save basic doc to fetch GSTINs automatically)
+    # 7. FIRST INSERT
     sq.flags.ignore_validate = True
     sq.run_method("set_missing_values")
     sq.insert(ignore_permissions=True)
@@ -293,17 +293,12 @@ def create_supplier_quotation(**kwargs):
     sq.reload()
 
     # 8. AFTER INSERT: TAX CATEGORY & TAXES LOGIC
-    
     s_gstin = sq.supplier_gstin
     c_gstin = sq.company_gstin
 
-
-    # Tax Category Check
     if s_gstin and c_gstin:
         supplier_state = str(s_gstin).strip()[:2]
         company_state = str(c_gstin).strip()[:2]
-
-
         if supplier_state == company_state:
             sq.tax_category = "In-State"
         else:
@@ -311,52 +306,18 @@ def create_supplier_quotation(**kwargs):
     else:
         sq.tax_category = "Out-State"
 
-
-    # Clear old taxes if any auto-fetched
     sq.set("taxes", [])
 
-    # Tax Child Table Entry Based on Condition
     if total_gst_amount > 0:
         if sq.tax_category == "In-State":
             half_gst = total_gst_amount / 2
-            
-            sq.append("taxes", {
-                "charge_type": "On Net Total",
-                "account_head": "Input Tax CGST - VEIL",
-                "tax_amount": half_gst,
-                "description": "Central GST (In-State)",
-                "category": "Total"
-            })
-
-            sq.append("taxes", {
-                "charge_type": "On Net Total",
-                "account_head": "Input Tax SGST - VEIL",
-                "tax_amount": half_gst,
-                "description": "State GST (In-State)",
-                "category": "Total"
-            })
-            print("Action: Added CGST and SGST in Taxes table.")
-
+            sq.append("taxes", {"charge_type": "On Net Total", "account_head": "Input Tax CGST - VEIL", "tax_amount": half_gst, "description": "Central GST (In-State)", "category": "Total"})
+            sq.append("taxes", {"charge_type": "On Net Total", "account_head": "Input Tax SGST - VEIL", "tax_amount": half_gst, "description": "State GST (In-State)", "category": "Total"})
         else:
-            sq.append("taxes", {
-                "charge_type": "On Net Total",
-                "account_head": "Input Tax IGST - VEIL",
-                "tax_amount": total_gst_amount,
-                "description": "Integrated GST (Out-State)",
-                "category": "Total"
-            })
-            print("Action: Added IGST in Taxes table.")
+            sq.append("taxes", {"charge_type": "On Net Total", "account_head": "Input Tax IGST - VEIL", "tax_amount": total_gst_amount, "description": "Integrated GST (Out-State)", "category": "Total"})
 
     if freight_amount > 0:
-        sq.append("taxes", {
-            "charge_type": "On Net Total",
-            "account_head": "Freight and Forwarding Charges - VEIL",
-            "rate": freight_p,
-            "tax_amount": freight_amount,
-            "description": f"Freight Charges @ {freight_p}%",
-            "category": "Total"
-        })
-        print("Action: Added Freight in Taxes table.")
+        sq.append("taxes", {"charge_type": "On Net Total", "account_head": "Freight and Forwarding Charges - VEIL", "rate": freight_p, "tax_amount": freight_amount, "description": f"Freight Charges @ {freight_p}%", "category": "Total"})
 
     # 9. Update Totals and SAVE Again
     sq.net_total = total_net_amount_exclusive
@@ -367,14 +328,28 @@ def create_supplier_quotation(**kwargs):
     sq.save(ignore_permissions=True)
     frappe.db.commit()
 
-    # 10. FILE ATTACHMENT
-    attach_file = other_details.get("attach_file")
-    if attach_file and isinstance(attach_file, dict) and attach_file.get("content"):
+    # 10. ATTACHMENT PORTION (Private Save)
+    attachment_json = kwargs.get("attachment")
+    if attachment_json:
         try:
-            file_name = attach_file.get("file_name")
-            file_content = base64.b64decode(attach_file.get("content"))
-            save_file(file_name, file_content, sq.doctype, sq.name, is_private=1)
+            file_data = json.loads(attachment_json)
+            if file_data and file_data.get("content"):
+                filename = file_data.get("filename")
+                content = file_data.get("content")
+
+                if "," in content:
+                    content = content.split(",")[1]
+
+                # is_private=1 set karne se ye portal par dikhai nahi dega
+                save_file(
+                    filename, 
+                    content, 
+                    "Supplier Quotation", 
+                    sq.name, 
+                    decode=True, 
+                    is_private=1 
+                )
         except Exception as e:
-            frappe.log_error(f"Attachment Error: {str(e)}")
+            frappe.log_error(f"Attachment Error in SQ {sq.name}: {str(e)}")
 
     return sq.name
