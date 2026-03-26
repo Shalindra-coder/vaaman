@@ -67,7 +67,6 @@ function update_custom_status(frm, save_if_changed = false) {
 				frm.set_value("custom_status", r.message);
 				frm.refresh_field("custom_status");
 				frm.save();
-				frm.refresh_form();
 			}
 
 			if (r.exc) {
