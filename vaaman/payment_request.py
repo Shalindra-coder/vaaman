@@ -1,40 +1,52 @@
 import frappe
 from frappe.utils import flt
+from frappe.model.document import Document
 
 
 @frappe.whitelist()
 def update_status_db(docname=None, method=None):
 	"""
-	Updates the custom_status of a single Payment Request based on its own amount and outstanding.
-	Also fires a realtime event to update UI.
+	Updates the custom_status of a single Payment Request.
+	Handles both doc object and docname string safely.
 	"""
 	try:
-		doc = frappe.get_doc("Payment Request", docname).reload()
+		# Handle both doc object & string
+		if isinstance(docname, Document):
+			doc = docname
+			docname = doc.name
+		else:
+			doc = frappe.get_doc("Payment Request", docname)
+
+		doc.reload()
 
 		# Determine new status
 		if doc.docstatus == 2:
 			new_status = "Cancelled"
+
 		elif not doc.custom_status or doc.workflow_state == "Draft":
 			new_status = "Draft"
+
 		elif doc.workflow_state == "Approval Pending By Management":
 			new_status = "Ready to Pay"
-		elif doc.docstatus == 1:
-			new_status = get_payment_request_status(doc)
+
 		elif doc.workflow_state == "Approved":
 			new_status = "Initiated"
+
+		elif doc.docstatus == 1:
+			new_status = get_payment_request_status(doc)
+
 		else:
 			new_status = "Draft"
 
 		# Update only if changed
 		if doc.custom_status != new_status:
-			# Silent update without updating modified timestamp
-			frappe.db.set_value(
-				"Payment Request", docname, "custom_status", new_status, update_modified=False
-			)
-			doc.reload()
-			frappe.logger().info(f"Updated Payment Request {docname} custom_status to {new_status}")
+			doc.db_set("custom_status", new_status, update_modified=False)
 
-			# 🔔 Fire realtime event
+			frappe.logger().info(
+				f"Updated Payment Request {docname} custom_status to {new_status}"
+			)
+
+			# Realtime UI update
 			frappe.publish_realtime(
 				"payment_request_status_update",
 				{"payment_request": docname, "new_status": new_status},
@@ -44,13 +56,16 @@ def update_status_db(docname=None, method=None):
 		return new_status
 
 	except Exception as e:
-		frappe.log_error(f"update_status_db error for {docname}: {e!s}", "Payment Request Sync Error")
+		frappe.log_error(
+			f"update_status_db error for {docname}: {e!s}",
+			"Payment Request Sync Error"
+		)
 		raise
 
 
 def get_payment_request_status(doc):
 	"""
-	Determines Payment Request status using its own grand_total and outstanding_amount.
+	Determines Payment Request status using its own amounts.
 	"""
 	try:
 		amount = flt(doc.grand_total or 0)
@@ -61,15 +76,20 @@ def get_payment_request_status(doc):
 
 		if outstanding == 0:
 			return "Paid"
+
 		elif 0 < outstanding < amount:
 			return "Partially Paid"
+
 		elif outstanding >= amount:
 			return "Initiated"
+
 		else:
 			return "Initiated"
+
 	except Exception as e:
 		frappe.log_error(
-			f"get_payment_request_status error for {doc.name}: {e!s}", "Payment Request Sync Error"
+			f"get_payment_request_status error for {doc.name}: {e!s}",
+			"Payment Request Sync Error"
 		)
 		return "Initiated"
 
@@ -77,14 +97,16 @@ def get_payment_request_status(doc):
 @frappe.whitelist()
 def update_all_linked_payment_requests(doc, method=None):
 	"""
-	On submission or cancellation of a Payment Entry, update statuses of all linked Payment Requests.
-	Runs updates in the background.
+	Triggered on Payment Entry submit/cancel.
+	Updates all linked Payment Requests in background.
 	"""
 	try:
 		references = doc.get("references", [])
+
 		if not references or not isinstance(references, list):
 			frappe.log_error(
-				f"Invalid references in {doc.doctype} {doc.name}: {references}", "Payment Request Sync Error"
+				f"Invalid references in {doc.doctype} {doc.name}: {references}",
+				"Payment Request Sync Error"
 			)
 			return
 
@@ -94,6 +116,7 @@ def update_all_linked_payment_requests(doc, method=None):
 			allocated_amount = flt(ref.get("allocated_amount", 0))
 
 			if reference_doctype and reference_name and allocated_amount > 0:
+
 				payment_requests = frappe.get_all(
 					"Payment Request",
 					filters={
@@ -105,16 +128,20 @@ def update_all_linked_payment_requests(doc, method=None):
 				)
 
 				for pr_name in payment_requests:
-					# Run in background
-					frappe.enqueue("vaaman.payment_request.update_status_db", docname=pr_name)
+					# Background job
+					frappe.enqueue(
+						"vaaman.payment_request.update_status_db",
+						docname=pr_name
+					)
 
 	except Exception as e:
 		frappe.log_error(
-			f"update_all_linked_payment_requests error in {doc.name}: {e!s}", "Payment Request Sync Error"
+			f"update_all_linked_payment_requests error in {doc.name}: {e!s}",
+			"Payment Request Sync Error"
 		)
 
 
-# ➤ ERPNext core wrapper (keep if needed)
+# ➤ ERPNext core wrapper (override)
 from erpnext.accounts.doctype.payment_request.payment_request import (
 	update_payment_requests_as_per_pe_references as original_update,
 )
@@ -122,12 +149,14 @@ from erpnext.accounts.doctype.payment_request.payment_request import (
 
 def custom_update_payment_requests(references, cancel=None):
 	"""
-	Override ERPNext's update_payment_requests_as_per_pe_references to ensure correct handling.
+	Wrapper over ERPNext core function.
+	Ensures correct references handling.
 	"""
 	try:
-		if isinstance(references, frappe.model.document.Document) and references.doctype == "Payment Entry":
+		# If Payment Entry doc passed
+		if isinstance(references, Document) and references.doctype == "Payment Entry":
 			references = references.get("references", [])
-			frappe.logger().info(f"Extracted references from Payment Entry: {references}")
+			frappe.logger().info(f"Extracted references: {references}")
 
 		if not references or not isinstance(references, list):
 			frappe.log_error(
@@ -139,17 +168,31 @@ def custom_update_payment_requests(references, cancel=None):
 		return original_update(references, cancel)
 
 	except Exception as e:
-		frappe.log_error(f"custom_update_payment_requests error: {e!s}", "Payment Request Sync Error")
+		frappe.log_error(
+			f"custom_update_payment_requests error: {e!s}",
+			"Payment Request Sync Error"
+		)
 
 
 def sync_all_payment_requests():
 	"""
-	Fallback sync - updates statuses for all submitted Payment Requests.
+	Fallback: Sync all submitted Payment Requests.
 	"""
 	try:
-		pr_names = frappe.get_all("Payment Request", filters={"docstatus": 1}, pluck="name")
+		pr_names = frappe.get_all(
+			"Payment Request",
+			filters={"docstatus": 1},
+			pluck="name"
+		)
+
 		for name in pr_names:
-			frappe.enqueue("vaaman.payment_request.update_status_db", docname=name)
+			frappe.enqueue(
+				"vaaman.payment_request.update_status_db",
+				docname=name
+			)
 
 	except Exception as e:
-		frappe.log_error(f"sync_all_payment_requests error: {e!s}", "Payment Request Sync Error")
+		frappe.log_error(
+			f"sync_all_payment_requests error: {e!s}",
+			"Payment Request Sync Error"
+		)
