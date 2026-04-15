@@ -6,15 +6,19 @@
 {% endblock %}
 
 {% block header_actions %}
-    <!-- Button yahan se hata kar niche main content mein daal diya hai -->
+    <!-- Actions moved to main content area -->
 {% endblock %}
 
 {% block script %}
 <script>
+/* 
+   Including the external rfq.js file logic. 
+*/
 {% include "templates/includes/rfq.js" %}
 
 document.addEventListener("DOMContentLoaded", function() {
-  // --- Terms Popup Logic ---
+  
+  // --- Terms & Conditions Popup Logic ---
   var termsOverlay = document.getElementById("termsOverlay");
   var agreeBtn = document.getElementById("agreeBtn");
   var disagreeBtn = document.getElementById("disagreeBtn");
@@ -26,6 +30,7 @@ document.addEventListener("DOMContentLoaded", function() {
     agreeBtn.addEventListener("click", function() {
       if (termsOverlay) termsOverlay.style.display = "none";
       if (rfqContent) rfqContent.style.display = "block";
+      // Optional: Load additional ERPNext RFQ assets if needed
       var script = document.createElement("script");
       script.src = "/assets/erpnext/js/rfq.js";
       document.body.appendChild(script);
@@ -38,20 +43,23 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  // --- Payment Terms ---
+  // --- Payment Terms Matching ---
   const ptSelect = document.getElementById('payment_terms_template');
   if (ptSelect) {
-    // Agar server side se selected nahi hua toh JS ke zariye value set karna
     if("{{ doc.custom_terms_and_conditions }}") {
         ptSelect.value = "{{ doc.custom_terms_and_conditions }}";
     }
   }
 
-  // --- GST aur Totals Calculation ---
-  function calculateTotals() {
+  /**
+   * Main Calculation Logic
+   * @param {string} triggerSource - Identifies if change came from 'percent' field or 'amount' field
+   */
+  function calculateTotals(triggerSource) {
     var sumBaseNetTotal = 0;
     var sumGstAmount = 0;
     
+    // Calculate each row item
     document.querySelectorAll('.rfq-item-row').forEach(function(row) {
       var qty = parseFloat(row.querySelector('.item-qty')?.textContent || 0);
       var rate = parseFloat(row.querySelector('.item-rate')?.value || 0);
@@ -65,6 +73,7 @@ document.addEventListener("DOMContentLoaded", function() {
       var itemGstAmount = (itemNetAmount * gstPercent) / 100;
       var finalItemRowTotal = itemNetAmount + itemGstAmount;
       
+      // Update row total display
       var amountDisplay = row.querySelector('.item-amount');
       if (amountDisplay) amountDisplay.textContent = finalItemRowTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
       
@@ -72,6 +81,7 @@ document.addEventListener("DOMContentLoaded", function() {
       sumGstAmount += itemGstAmount;
     });
 
+    // Update Totals Summary
     var netTotalIncludingGST = sumBaseNetTotal + sumGstAmount;
     var netTotalDisplay = document.querySelector('.tax-grand-total');
     if (netTotalDisplay) netTotalDisplay.textContent = netTotalIncludingGST.toLocaleString('en-IN', {minimumFractionDigits: 2});
@@ -79,24 +89,54 @@ document.addEventListener("DOMContentLoaded", function() {
     var gstTotalDisplay = document.getElementById('total_gst_amount');
     if (gstTotalDisplay) gstTotalDisplay.textContent = sumGstAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
 
-    var freightElem = document.getElementById('freight_percentage');
-    var freightPercent = freightElem ? parseFloat(freightElem.value || "0") : 0;
-    var freightAmount = (sumBaseNetTotal * freightPercent) / 100;
+    // --- FREIGHT CALCULATION LOGIC ---
+    var freightPercentElem = document.getElementById('freight_percentage');
+    var freightAmountElem = document.getElementById('freight_amount');
+    
+    var freightPercent = parseFloat(freightPercentElem.value || "0");
+    var freightAmount = parseFloat(freightAmountElem.value || "0");
+
+    if (triggerSource === 'percent') {
+        // If user enters %, calculate Amount
+        freightAmount = (sumBaseNetTotal * freightPercent) / 100;
+        freightAmountElem.value = freightAmount.toFixed(2);
+    } else if (triggerSource === 'amount') {
+        // If user enters Amount, calculate %
+        if(sumBaseNetTotal > 0) {
+            freightPercent = (freightAmount / sumBaseNetTotal) * 100;
+            freightPercentElem.value = freightPercent.toFixed(2);
+        }
+    } else {
+        // Initial load calculation
+        freightAmount = (sumBaseNetTotal * freightPercent) / 100;
+        freightAmountElem.value = freightAmount.toFixed(2);
+    }
+
     var grandTotal = netTotalIncludingGST + freightAmount;
     
     var grandTotalElem = document.getElementById('grand_total_with_tax');
     if (grandTotalElem) grandTotalElem.value = grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2});
   }
 
+  // Event Listeners for inputs
   document.addEventListener('input', function(e) {
+    // Item row changes
     if (e.target.classList.contains('item-rate') || 
         e.target.classList.contains('item-discount') || 
-        e.target.classList.contains('item-gst') || 
-        e.target.id === 'freight_percentage') {
+        e.target.classList.contains('item-gst')) {
       calculateTotals();
+    }
+    
+    // Freight changes
+    if (e.target.id === 'freight_percentage') {
+      calculateTotals('percent');
+    }
+    if (e.target.id === 'freight_amount') {
+      calculateTotals('amount');
     }
   });
 
+  // Run initial calculation on page load
   calculateTotals();
 });
 </script>
@@ -115,10 +155,36 @@ document.addEventListener("DOMContentLoaded", function() {
     .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 0.6rem 1.5rem; }
     .btn-make-quotation { background: #7c67ef; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 500; }
     
-    #paymentScheduleContainer { display: none !important; }
+    /* Style for the Quotation Link */
+    .quotation-stats-link {
+        display: inline-flex;
+        align-items: center;
+        background: #f0f2f9;
+        padding: 10px 18px;
+        border-radius: 8px;
+        border: 1px solid #d1d3e2;
+        color: #4e73df;
+        transition: all 0.2s;
+        text-decoration: none !important;
+    }
+    .quotation-stats-link:hover {
+        background: #e2e6f0;
+        border-color: #4e73df;
+    }
+    .stats-number {
+        background: #764ba2;
+        color: #fff;
+        padding: 2px 10px;
+        border-radius: 20px;
+        margin-left: 8px;
+        font-weight: 700;
+    }
 </style>
 
-<!-- Terms Overlay Code -->
+<!-- COUNT FIX: Using get_all with distinct=True to avoid duplicates and prevent 500 Error -->
+{% set sq_count = frappe.get_all("Supplier Quotation", filters={"request_for_quotation": doc.name, "owner": frappe.session.user, "docstatus": ["!=", 2]}, fields=["name"], distinct=True) | length %}
+
+<!-- Terms Overlay Modal -->
 <div id="termsOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
     <div style="background:#fff; width:600px; max-width:90%; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.3); overflow:hidden; display:flex; flex-direction:column; max-height:80vh;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding:20px; font-weight:600; color:white;">{{ _("Terms & Conditions") }}</div>
@@ -131,8 +197,18 @@ document.addEventListener("DOMContentLoaded", function() {
 </div>
 
 <div id="rfqMainContent" style="display:none;">
+
+    <!-- Clickable Submission Summary Link -->
+    <div class="mb-4">
+        <a href="/app/supplier-quotation?request_for_quotation={{ doc.name }}&owner={{ frappe.session.user }}" target="_blank" class="quotation-stats-link">
+            <i class="fas fa-file-invoice mr-2"></i>
+            <strong>{{ _("Total Received Supplier Quotation:") }}</strong>
+            <span class="stats-number">{{ sq_count }}</span>
+            <small class="ml-2 text-muted">({{ _("View My List") }})</small>
+        </a>
+    </div>
     
-    <!-- Top Row: Closed On and Make Quotation aligned -->
+    <!-- Top Row Information -->
     <div class="row align-items-end mb-4">
         <div class="col-md-3">
             <div class="form-group mb-0">
@@ -156,6 +232,7 @@ document.addEventListener("DOMContentLoaded", function() {
         <h2 class="section-header"><i class="fas fa-calculator mr-2"></i>{{ _("Pricing Section") }}</h2>
         <div class="section-content">
             <div style="width: 100%;" id="rfq-items">
+                <!-- Header row for items -->
                 <div class="row cart-item-header font-weight-bold text-muted d-none d-sm-flex">
                     <div class="col-sm-4">{{ _("Items") }}</div>
                     <div class="col-sm-1 text-right">{{ _("Qty") }}</div>
@@ -171,9 +248,9 @@ document.addEventListener("DOMContentLoaded", function() {
                 {% endif %}
             </div>
 
-            <!-- Calculation Summary -->
+            <!-- Calculation Summary with Freight Fields -->
             <div class="row mt-4">
-                <div class="col-md-5 offset-md-7 p-4 bg-light border rounded">
+                <div class="col-md-6 offset-md-6 p-4 bg-light border rounded">
                     <div class="d-flex justify-content-between mb-2">
                         <span class="font-weight-bold">{{ _("Net Total (Incl. Discount & GST)") }}</span>
                         <span>{{ doc.currency_symbol }} <span class="tax-grand-total">0.00</span></span>
@@ -182,13 +259,21 @@ document.addEventListener("DOMContentLoaded", function() {
                         <span class="font-weight-bold">{{ _("Total GST Amount:") }}</span>
                         <span>{{ doc.currency_symbol }} <span id="total_gst_amount">0.00</span></span>
                     </div>
+                    
                     <div class="row align-items-end">
-                        <div class="col-6">
-                            <label class="small mb-1">{{ _("Freight Charges (%)") }}</label>
+                        <!-- Freight Percentage -->
+                        <div class="col-4">
+                            <label class="small mb-1">{{ _("Freight (%)") }}</label>
                             <input type="number" step="0.01" class="form-control" id="freight_percentage" placeholder="0.00">
                         </div>
-                        <div class="col-6">
-                            <label class="small mb-1 font-weight-bold text-primary">{{ _("Grand Total (Incl. Freight)") }}</label>
+                        <!-- Freight Amount (Direct Input) -->
+                        <div class="col-4">
+                            <label class="small mb-1">{{ _("Freight Amount") }}</label>
+                            <input type="number" step="0.01" class="form-control" id="freight_amount" placeholder="0.00">
+                        </div>
+                        <!-- Final Grand Total Display -->
+                        <div class="col-4">
+                            <label class="small mb-1 font-weight-bold text-primary">{{ _("Grand Total") }}</label>
                             <input type="text" class="form-control total-display" id="grand_total_with_tax" readonly>
                         </div>
                     </div>
@@ -207,7 +292,6 @@ document.addEventListener("DOMContentLoaded", function() {
                         <label>{{ _("Payment Terms Template") }}</label>
                         <select class="form-control" id="payment_terms_template">
                             <option value="">{{ _("Select Payment Term") }}</option>
-                            {# Yahan hum database se saare templates fetch kar rahe hain #}
                             {% set payment_templates = frappe.get_all("Payment Terms Template", fields=["name"]) %}
                             {% for pt in payment_templates %}
                                 <option value="{{ pt.name }}" {% if doc.custom_terms_and_conditions == pt.name %}selected{% endif %}>
@@ -238,8 +322,13 @@ document.addEventListener("DOMContentLoaded", function() {
         <div class="section-content">
             <div class="row">
                 <div class="col-md-6">
-                    <label>{{ _("Attach File") }}</label>
-                    <input type="file" id="document_attachment" class="form-control-file border p-2 w-100 rounded bg-light" style="height: auto !important;">
+                    <label>{{ _("Attach File (You can select multiple PDFs)") }}</label>
+                    <input type="file" id="document_attachment" 
+                           class="form-control-file border p-2 w-100 rounded bg-light" 
+                           style="height: auto !important;" 
+                           multiple 
+                           accept=".pdf">
+                    <small class="text-muted">Hold Ctrl (Windows) or Command (Mac) to select multiple files.</small>
                 </div>
                 <div class="col-md-6">
                     <label>{{ _("Notes") }}</label>
@@ -249,6 +338,7 @@ document.addEventListener("DOMContentLoaded", function() {
         </div>
     </div>
 
+    <!-- Final Submission Button -->
     <div class="text-center mb-5">
         <button type="submit" class="btn btn-primary btn-lg px-5 shadow">
             <i class="fas fa-paper-plane mr-2"></i>{{ _("Submit Quotation") }}
