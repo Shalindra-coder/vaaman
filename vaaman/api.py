@@ -189,6 +189,7 @@ def bulk_make_draft_payment_entries(payment_requests):
 
 
 
+
 import base64
 import json
 import re
@@ -228,6 +229,10 @@ def create_supplier_quotation(**kwargs):
 
     total_net_amount_exclusive = 0.0
     total_gst_amount = 0.0
+    
+    # Header totals logic
+    total_qty_header = 0.0
+    total_item_amount_header = 0.0
 
     # 3. ITEM CALCULATION & APPEND
     for item in item_data:
@@ -244,6 +249,10 @@ def create_supplier_quotation(**kwargs):
 
         total_net_amount_exclusive += row_net_amount
         total_gst_amount += row_gst_amount
+        
+        # Calculate Header Values
+        total_qty_header += qty
+        total_item_amount_header += (qty * rate)
 
         sq.append("items", {
             "item_code": item.get("item_code"),
@@ -259,6 +268,10 @@ def create_supplier_quotation(**kwargs):
             "item_tax_template": gst_template,
             "base_net_amount": row_net_amount
         })
+
+    # Assign Header Values
+    sq.total_qty = total_qty_header
+    sq.total = total_item_amount_header
 
     # 4. Freight Calculation
     freight_p = flt(other_details.get("freight_percentage", 0))
@@ -311,13 +324,52 @@ def create_supplier_quotation(**kwargs):
     if total_gst_amount > 0:
         if sq.tax_category == "In-State":
             half_gst = total_gst_amount / 2
-            sq.append("taxes", {"charge_type": "On Net Total", "account_head": "Input Tax CGST - VEIL", "tax_amount": half_gst, "description": "Central GST (In-State)", "category": "Total"})
-            sq.append("taxes", {"charge_type": "On Net Total", "account_head": "Input Tax SGST - VEIL", "tax_amount": half_gst, "description": "State GST (In-State)", "category": "Total"})
+            
+            # --- Fetch Rate from Account DocType ---
+            cgst_account = "Input Tax CGST - VEIL"
+            sgst_account = "Input Tax SGST - VEIL"
+            cgst_rate = flt(frappe.db.get_value("Account", cgst_account, "tax_rate"))
+            sgst_rate = flt(frappe.db.get_value("Account", sgst_account, "tax_rate"))
+
+            sq.append("taxes", {
+                "charge_type": "On Net Total", 
+                "account_head": cgst_account, 
+                "rate": cgst_rate, 
+                "tax_amount": half_gst, 
+                "description": "Central GST (In-State)", 
+                "category": "Total"
+            })
+            sq.append("taxes", {
+                "charge_type": "On Net Total", 
+                "account_head": sgst_account, 
+                "rate": sgst_rate, 
+                "tax_amount": half_gst, 
+                "description": "State GST (In-State)", 
+                "category": "Total"
+            })
         else:
-            sq.append("taxes", {"charge_type": "On Net Total", "account_head": "Input Tax IGST - VEIL", "tax_amount": total_gst_amount, "description": "Integrated GST (Out-State)", "category": "Total"})
+            # --- Fetch Rate from Account DocType for IGST ---
+            igst_account = "Input Tax IGST - VEIL"
+            igst_rate = flt(frappe.db.get_value("Account", igst_account, "tax_rate"))
+
+            sq.append("taxes", {
+                "charge_type": "On Net Total", 
+                "account_head": igst_account, 
+                "rate": igst_rate, 
+                "tax_amount": total_gst_amount, 
+                "description": "Integrated GST (Out-State)", 
+                "category": "Total"
+            })
 
     if freight_amount > 0:
-        sq.append("taxes", {"charge_type": "On Net Total", "account_head": "Freight and Forwarding Charges - VEIL", "rate": freight_p, "tax_amount": freight_amount, "description": f"Freight Charges @ {freight_p}%", "category": "Total"})
+        sq.append("taxes", {
+            "charge_type": "On Net Total", 
+            "account_head": "Freight and Forwarding Charges - VEIL", 
+            "rate": freight_p, 
+            "tax_amount": freight_amount, 
+            "description": f"Freight Charges @ {freight_p}%", 
+            "category": "Total"
+        })
 
     # 9. Update Totals and SAVE Again
     sq.net_total = total_net_amount_exclusive
@@ -328,28 +380,35 @@ def create_supplier_quotation(**kwargs):
     sq.save(ignore_permissions=True)
     frappe.db.commit()
 
-    # 10. ATTACHMENT PORTION (Private Save)
+    # --- FIX START: 10. ATTACHMENT PORTION (BULK SUPPORT) ---
     attachment_json = kwargs.get("attachment")
     if attachment_json:
         try:
-            file_data = json.loads(attachment_json)
-            if file_data and file_data.get("content"):
-                filename = file_data.get("filename")
-                content = file_data.get("content")
+            attachments = json.loads(attachment_json)
+            
+            # Agar single attachment hai toh use list mein convert karein loop ke liye
+            if isinstance(attachments, dict):
+                attachments = [attachments]
 
-                if "," in content:
-                    content = content.split(",")[1]
+            for file_data in attachments:
+                if file_data and file_data.get("content"):
+                    filename = file_data.get("filename")
+                    content = file_data.get("content")
 
-                # is_private=1 set karne se ye portal par dikhai nahi dega
-                save_file(
-                    filename, 
-                    content, 
-                    "Supplier Quotation", 
-                    sq.name, 
-                    decode=True, 
-                    is_private=1 
-                )
+                    # Base64 header remove karna (e.g., data:application/pdf;base64,)
+                    if "," in content:
+                        content = content.split(",")[1]
+
+                    save_file(
+                        filename, 
+                        content, 
+                        "Supplier Quotation", 
+                        sq.name, 
+                        decode=True, 
+                        is_private=1 
+                    )
         except Exception as e:
-            frappe.log_error(f"Attachment Error in SQ {sq.name}: {str(e)}")
+            frappe.log_error(f"Bulk Attachment Error in SQ {sq.name}: {str(e)}")
+    # --- FIX END ---
 
     return sq.name

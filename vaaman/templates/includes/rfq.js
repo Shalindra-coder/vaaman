@@ -9,7 +9,7 @@ $(document).ready(function() {
 	doc.buying_price_list = "{{ doc.buying_price_list }}";
 });
 
-// Helper: GST percentage nikalne ke liye
+// Helper: To extract GST percentage from template string
 function extract_gst_percent(gst_template) {
 	if (!gst_template) return 0;
 	let match = gst_template.match(/(\d+(\.\d+)?)\s*%/);
@@ -64,13 +64,33 @@ rfq = class rfq {
 	change_gst(){
 		let me = this;
 		$('.rfq-items').on("change", ".rfq-gst", function(){
+            // Remove red border when GST is selected
+            $(this).css("border", "");
 			me.calculate_all_totals();
 		});
 	}
 
+	// Updated: Added logic to handle both Percent and direct Amount for freight
 	update_freight_charges(){
 		let me = this;
+		
+		// When Percentage is changed
 		$(document).on("input change", "#freight_percentage", function(){
+			let total_net = doc.net_total || 0;
+			let p = flt($(this).val());
+			let amt = (total_net * p) / 100;
+			$('#freight_amount').val(amt.toFixed(2)); // Update amount field
+			me.calculate_all_totals();
+		});
+
+		// When Amount is changed directly
+		$(document).on("input change", "#freight_amount", function(){
+			let total_net = doc.net_total || 0;
+			let amt = flt($(this).val());
+			if(total_net > 0) {
+				let p = (amt / total_net) * 100;
+				$('#freight_percentage').val(p.toFixed(2)); // Update percent field
+			}
 			me.calculate_all_totals();
 		});
 	}
@@ -108,8 +128,9 @@ rfq = class rfq {
 			total_gst_sum += row_gst_amount;
 		});
 
+		// Calculate Grand Total using the Freight Amount field
 		let freight_p = flt($('#freight_percentage').val());
-		let freight_amount = (total_pure_net * freight_p) / 100; 
+		let freight_amount = flt($('#freight_amount').val()); 
 
 		let grand_total = total_pure_net + total_gst_sum + freight_amount;
 
@@ -136,7 +157,32 @@ rfq = class rfq {
 			e.preventDefault();
 			
 			let $btn = $(this);
-			$btn.prop('disabled', true); // Prevent double submission
+
+			// --- MANDATORY GST VALIDATION ---
+			let is_valid = true;
+
+			doc.items.forEach(function(item) {
+				let gst_val = $(`.rfq-gst[data-idx="${item.idx}"]`).val();
+				
+				if (!gst_val || gst_val.trim() === "" || gst_val === "None") {
+					is_valid = false;
+					$(`.rfq-gst[data-idx="${item.idx}"]`).css("border", "1px solid red");
+				} else {
+					$(`.rfq-gst[data-idx="${item.idx}"]`).css("border", "");
+				}
+			});
+
+			if (!is_valid) {
+				frappe.msgprint({
+					title: __('Validation Error'),
+					indicator: 'red',
+					message: __('Please select a GST Template for all items before submitting.')
+				});
+				return; 
+			}
+
+			// Disabling button at the start of submission process
+			$btn.prop('disabled', true); 
 
 			me.calculate_all_totals();
 
@@ -167,29 +213,41 @@ rfq = class rfq {
 				notes: $('#document_notes').val()
 			};
 
-			// 3. Handle File Attachment logic
+			// --- 3. Handle MULTIPLE File Attachment logic ---
 			let fileInput = document.getElementById('document_attachment');
-			let file = fileInput.files[0];
+			let files = fileInput.files;
 
-			if (file) {
-				let reader = new FileReader();
-				reader.onload = function(e) {
-					let file_data = {
-						"filename": file.name,
-						"content": e.target.result
-					};
-					// Send with attachment
-					me.send_to_server(item_details, other_details, file_data, $btn);
-				};
-				reader.readAsDataURL(file);
+			if (files.length > 0) {
+				// Sabhi files ko read karne ke liye promises ka array banaya
+				let filePromises = Array.from(files).map(file => {
+					return new Promise((resolve, reject) => {
+						let reader = new FileReader();
+						reader.onload = function(e) {
+							resolve({
+								"filename": file.name,
+								"content": e.target.result
+							});
+						};
+						reader.onerror = reject;
+						reader.readAsDataURL(file);
+					});
+				});
+
+				// Jab saari files read ho jayein, tab server call karein
+				Promise.all(filePromises).then(attachment_list => {
+					me.send_to_server(item_details, other_details, attachment_list, $btn);
+				}).catch(err => {
+					console.error("File reading error:", err);
+					$btn.prop('disabled', false);
+				});
+
 			} else {
-				// Send without attachment
+				// No files attached
 				me.send_to_server(item_details, other_details, null, $btn);
 			}
 		});
 	}
 
-	// Helper function for API call
 	send_to_server(item_details, other_details, attachment_data, $btn) {
 		frappe.call({
 			method: "vaaman.api.create_supplier_quotation",
