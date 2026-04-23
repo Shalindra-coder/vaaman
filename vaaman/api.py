@@ -77,8 +77,8 @@ def bulk_make_draft_payment_entries(payment_requests):
             # ---------------------------
             # Payment Account Validation
             # ---------------------------
-            if not pr.payment_account and pr.payment_request_type == "Outward":
-                frappe.throw(f"Payment Account is mandatory for {pr.name}")
+            #if not pr.payment_account and pr.payment_request_type == "Outward":
+            #   frappe.throw(f"Payment Account is mandatory for {pr.name}")
 
             # ---------------------------
             # 🔴 CRITICAL FIX: Bank Account Handling
