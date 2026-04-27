@@ -122,11 +122,16 @@ def update_all_linked_payment_requests(doc, method=None):
 		pr_names = set()
 
 		for ref in references:
+			# Direct link (most reliable when present)
+			direct_pr = ref.get("payment_request")
+			if direct_pr:
+				pr_names.add(direct_pr)
+
 			reference_doctype = ref.get("reference_doctype")
 			reference_name = ref.get("reference_name")
-			allocated_amount = flt(ref.get("allocated_amount", 0))
-
-			if reference_doctype and reference_name and allocated_amount > 0:
+			# Do not gate on allocated_amount > 0.
+			# On cancel, allocated can become 0 but status still must be recomputed.
+			if reference_doctype and reference_name:
 
 				payment_requests = frappe.get_all(
 					"Payment Request",
