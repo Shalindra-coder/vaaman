@@ -20,17 +20,15 @@ def update_status_db(docname=None, method=None):
 		doc.reload()
 
 		# Determine new status
+		# Priority: cancelled > submitted(payment lifecycle) > workflow-stage labels
 		if doc.docstatus == 2:
 			new_status = "Cancelled"
 
-		elif not doc.custom_status or doc.workflow_state == "Draft":
-			new_status = "Draft"
+		elif doc.docstatus == 1:
+			new_status = get_payment_request_status(doc)
 
 		elif doc.workflow_state == "Approval Pending By Management":
 			new_status = "Ready to Pay"
-
-		elif doc.docstatus == 1:
-			new_status = get_payment_request_status(doc)
 
 		elif doc.workflow_state == "Approved":
 			new_status = "Initiated"
