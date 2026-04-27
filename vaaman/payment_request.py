@@ -29,11 +29,11 @@ def update_status_db(docname=None, method=None):
 		elif doc.workflow_state == "Approval Pending By Management":
 			new_status = "Ready to Pay"
 
-		elif doc.workflow_state == "Approved":
-			new_status = "Initiated"
-
 		elif doc.docstatus == 1:
 			new_status = get_payment_request_status(doc)
+
+		elif doc.workflow_state == "Approved":
+			new_status = "Initiated"
 
 		else:
 			new_status = "Draft"
@@ -65,9 +65,18 @@ def update_status_db(docname=None, method=None):
 
 def get_payment_request_status(doc):
 	"""
-	Determines Payment Request status using its own amounts.
+	Determines Payment Request status.
+	Uses ERPNext's computed status when available, then falls back to amount logic.
 	"""
 	try:
+		core_status = (doc.status or "").strip()
+		if core_status in {"Paid", "Partially Paid", "Cancelled", "Failed", "Payment Ordered"}:
+			return core_status
+		if core_status in {"Requested", "Initiated"}:
+			return "Initiated"
+		if core_status == "Draft":
+			return "Draft"
+
 		amount = flt(doc.grand_total or 0)
 		outstanding = flt(doc.outstanding_amount or 0)
 
@@ -196,3 +205,52 @@ def sync_all_payment_requests():
 			f"sync_all_payment_requests error: {e!s}",
 			"Payment Request Sync Error"
 		)
+
+
+@frappe.whitelist()
+def resync_existing_payment_requests(only_submitted=1):
+	"""
+	One-time/manual utility to resync custom_status for existing Payment Requests.
+
+	Args:
+	        only_submitted (int|str|bool): 1/true -> only docstatus=1, else all.
+	Returns:
+	        dict: processed/updated/errors counters.
+	"""
+	try:
+		if isinstance(only_submitted, str):
+			only_submitted = only_submitted.strip().lower() in {"1", "true", "yes"}
+		else:
+			only_submitted = bool(only_submitted)
+
+		filters = {"docstatus": 1} if only_submitted else {}
+		pr_names = frappe.get_all("Payment Request", filters=filters, pluck="name")
+
+		processed = 0
+		updated = 0
+		errors = 0
+
+		for pr_name in pr_names:
+			try:
+				processed += 1
+				doc = frappe.get_doc("Payment Request", pr_name)
+				old_status = doc.custom_status
+				new_status = update_status_db(docname=pr_name)
+				if new_status != old_status:
+					updated += 1
+			except Exception:
+				errors += 1
+				frappe.log_error(
+					f"resync_existing_payment_requests failed for {pr_name}",
+					"Payment Request Sync Error",
+				)
+
+		frappe.db.commit()
+		return {"processed": processed, "updated": updated, "errors": errors}
+
+	except Exception as e:
+		frappe.log_error(
+			f"resync_existing_payment_requests error: {e!s}",
+			"Payment Request Sync Error"
+		)
+		raise
