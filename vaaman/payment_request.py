@@ -107,7 +107,7 @@ def get_payment_request_status(doc):
 def update_all_linked_payment_requests(doc, method=None):
 	"""
 	Triggered on Payment Entry submit/cancel.
-	Updates all linked Payment Requests in background.
+	Updates all linked Payment Requests immediately.
 	"""
 	try:
 		references = doc.get("references", [])
@@ -118,6 +118,8 @@ def update_all_linked_payment_requests(doc, method=None):
 				"Payment Request Sync Error"
 			)
 			return
+
+		pr_names = set()
 
 		for ref in references:
 			reference_doctype = ref.get("reference_doctype")
@@ -137,11 +139,10 @@ def update_all_linked_payment_requests(doc, method=None):
 				)
 
 				for pr_name in payment_requests:
-					# Background job
-					frappe.enqueue(
-						"vaaman.payment_request.update_status_db",
-						docname=pr_name
-					)
+					pr_names.add(pr_name)
+
+		for pr_name in pr_names:
+			update_status_db(docname=pr_name)
 
 	except Exception as e:
 		frappe.log_error(

@@ -50,27 +50,5 @@ frappe.listview_settings["Payment Request"] = {
 				},
 			});
 		});
-	},
-	refresh: function (listview) {
-		let selected_docs = listview.get_checked_items();
-		selected_docs.forEach((doc) => {
-			frappe.call({
-				method: "vaaman.payment_request.update_status_db",
-				args: {
-					docname: doc.name,
-				},
-				callback: function (r) {
-					if (r.exc) {
-						frappe.msgprint({
-							title: __("Error"),
-							message: __("Failed to update status: {0}", [r.exc]),
-							indicator: "red",
-						});
-						console.error("update_custom_status error:", r.exc);
-						return;
-					}
-				},
-			});
-		});
-	},
+	}
 };
