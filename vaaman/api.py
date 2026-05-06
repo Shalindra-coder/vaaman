@@ -86,7 +86,7 @@ def bulk_make_draft_payment_entries(payment_requests):
             bank_account = pr.get("bank_account")
 
             # ❌ NO fallback allowed (Financial Safety)
-            if not bank_account:
+            if not bank_account and pr.custom_is_cash_vendor != 1:
                 frappe.throw(
                     f"Supplier Bank Account is mandatory for {party} in Payment Request {pr.name}"
                 )
