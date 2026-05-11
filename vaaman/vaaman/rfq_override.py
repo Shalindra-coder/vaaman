@@ -14,11 +14,10 @@ class CustomRFQ(RequestforQuotation):
         if frappe.db.exists("User", rfq_supplier.email_id):
             user = frappe.get_doc("User", rfq_supplier.email_id)
 
-            # reset password link for existing user
-            user.reset_password()
-            update_password_link = frappe.utils.get_url(
-                f"/update-password?key={user.reset_password_key}"
-            )
+            # reset_password() returns a URL containing the raw key.
+            # The DB field `reset_password_key` only stores its sha256 hash,
+            # so we must use the return value directly.
+            update_password_link = user.reset_password()
         else:
             user, update_password_link = self.create_user(rfq_supplier, link)
 
