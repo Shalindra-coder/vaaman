@@ -161,8 +161,10 @@ doc_events = {
 		"on_submit": "vaaman.payment_request.update_all_linked_payment_requests",
 		"on_cancel": "vaaman.payment_request.update_all_linked_payment_requests",
 	},
-	# Optional if you want auto status update on edit of Payment Request
-	"Payment Request": {"on_update": "vaaman.payment_request.update_status_db"}
+	"Payment Request": {
+		"on_update": "vaaman.payment_request.update_status_db",
+		"on_submit": "vaaman.payment_request.update_status_db",
+	},
 }
 
 

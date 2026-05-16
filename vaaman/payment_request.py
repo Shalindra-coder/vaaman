@@ -72,8 +72,10 @@ def get_payment_request_status(doc):
 			return core_status
 		if core_status in {"Requested", "Initiated"}:
 			return "Initiated"
+		# Submitted PRs can still have core status "Draft" until payment activity;
+		# never mirror that as custom_status Draft on docstatus=1.
 		if core_status == "Draft":
-			return "Draft"
+			return "Initiated" if doc.docstatus == 1 else "Draft"
 
 		amount = flt(doc.grand_total or 0)
 		outstanding = flt(doc.outstanding_amount or 0)
@@ -209,6 +211,54 @@ def sync_all_payment_requests():
 			f"sync_all_payment_requests error: {e!s}",
 			"Payment Request Sync Error"
 		)
+
+
+@frappe.whitelist()
+def resync_mismatched_payment_requests():
+	"""
+	Fix PRs where workflow is Approved/submitted but custom_status is still Draft or stale.
+	"""
+	try:
+		pr_names = set(
+			frappe.get_all(
+				"Payment Request",
+				filters={
+					"docstatus": 1,
+					"workflow_state": "Approved",
+					"custom_status": "Draft",
+				},
+				pluck="name",
+			)
+		)
+		# custom_status out of sync with ERPNext status
+		for row in frappe.db.sql(
+			"""
+			SELECT name
+			FROM `tabPayment Request`
+			WHERE docstatus = 1
+			  AND workflow_state = 'Approved'
+			  AND IFNULL(custom_status, '') != IFNULL(status, '')
+			""",
+			as_dict=True,
+		):
+			pr_names.add(row.name)
+
+		updated = 0
+		for pr_name in pr_names:
+			old = frappe.db.get_value("Payment Request", pr_name, "custom_status")
+			new = update_status_db(docname=pr_name)
+			if new != old:
+				updated += 1
+
+		frappe.db.commit()
+		return {"processed": len(pr_names), "updated": updated, "errors": 0}
+
+	except Exception as e:
+		frappe.log_error(
+			f"resync_mismatched_payment_requests error: {e!s}",
+			"Payment Request Sync Error",
+		)
+		raise
 
 
 @frappe.whitelist()
