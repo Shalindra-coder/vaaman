@@ -139,9 +139,9 @@ doctype_list_js = {"Payment Request": "public/js/payment_request_list.js"}
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
-# }
+override_doctype_class = {
+	"Sales Invoice": "vaaman.overrides.sales_invoice.CustomSalesInvoice",
+}
 
 # Document Events
 # ---------------
@@ -164,6 +164,10 @@ doc_events = {
 	"Payment Request": {
 		"on_update": "vaaman.payment_request.update_status_db",
 		"on_submit": "vaaman.payment_request.update_status_db",
+	},
+	"Journal Entry": {
+		"on_cancel": "vaaman.overrides.asset_accounting.on_depreciation_je_cancel_or_trash",
+		"on_trash": "vaaman.overrides.asset_accounting.on_depreciation_je_cancel_or_trash",
 	},
 }
 
@@ -223,7 +227,7 @@ doc_events = {
 
 # Request Events
 # ----------------
-# before_request = ["vaaman.utils.before_request"]
+before_request = ["vaaman.boot.apply_overrides"]
 # after_request = ["vaaman.utils.after_request"]
 
 # Job Events
