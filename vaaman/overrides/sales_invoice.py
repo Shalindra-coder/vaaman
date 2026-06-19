@@ -65,7 +65,8 @@ class CustomSalesInvoice(SalesInvoice):
 			if not self.is_return and self.docstatus == 1 and asset.calculate_depreciation:
 				wdv = get_authoritative_wdv(asset, item.finance_book, disposal_date)
 				salvage = get_salvage_value(asset, item.finance_book)
-				if flt(wdv) <= flt(salvage) + 0.01:
+				# Fully Depreciated assets legitimately have WDV at salvage; no pro-rata is needed.
+				if asset.status != "Fully Depreciated" and flt(wdv) <= flt(salvage) + 0.01:
 					frappe.throw(
 						_(
 							"Asset {0}: written down value ({1}) equals salvage ({2}). "
