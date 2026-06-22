@@ -3,6 +3,7 @@ import frappe
 from frappe.utils import flt
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 from erpnext.accounts.doctype.payment_request.payment_request import get_accounting_dimensions
+from erpnext.accounts.party import get_party_bank_account
 from vaaman.utils import get_party_account_from_master
 
 @frappe.whitelist()
@@ -83,13 +84,43 @@ def bulk_make_draft_payment_entries(payment_requests):
             # ---------------------------
             # 🔴 CRITICAL FIX: Bank Account Handling
             # ---------------------------
-            bank_account = pr.get("bank_account")
+            selected_bank_account = pr.get("bank_account")
+            bank_account = selected_bank_account
 
-            # ❌ NO fallback allowed (Financial Safety)
+            # Validate that selected PR bank account still belongs to the resolved party.
+            if bank_account:
+                bank_party = frappe.db.get_value(
+                    "Bank Account",
+                    bank_account,
+                    ["party_type", "party"],
+                    as_dict=True,
+                )
+
+                if not bank_party or bank_party.party_type != party_type or bank_party.party != party:
+                    bank_account = None
+
+            # Recompute bank account from party defaults when PR value is stale/missing.
+            if not bank_account and party_type and party:
+                bank_account = get_party_bank_account(party_type, party)
+
+            # Non-cash vendor must always have a valid party bank account.
             if not bank_account and pr.custom_is_cash_vendor != 1:
                 frappe.throw(
                     f"Supplier Bank Account is mandatory for {party} in Payment Request {pr.name}"
                 )
+
+            # Keep PR bank account in sync when stale value was corrected.
+            if bank_account != selected_bank_account:
+                pr.db_set("bank_account", bank_account or "", update_modified=False)
+
+            bank_details = {}
+            if bank_account:
+                bank_details = frappe.db.get_value(
+                    "Bank Account",
+                    bank_account,
+                    ["bank", "bank_account_no", "branch_code"],
+                    as_dict=True,
+                ) or {}
 
             # Debug log (VERY IMPORTANT)
             frappe.logger().info(f"""
@@ -152,9 +183,9 @@ def bulk_make_draft_payment_entries(payment_requests):
                 "party_bank_account": bank_account,
 
                 # Optional custom fields
-                "custom_party_bank_account_no": pr.get("bank_account_no") or "",
-                "custom_party_bank_ifsc": pr.get("branch_code") or "",
-                "custom_party_bank_name": pr.get("bank") or "",
+                "custom_party_bank_account_no": bank_details.get("bank_account_no") or "",
+                "custom_party_bank_ifsc": bank_details.get("branch_code") or "",
+                "custom_party_bank_name": bank_details.get("bank") or "",
             })
 
             # ---------------------------

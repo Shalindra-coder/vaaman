@@ -49,7 +49,11 @@ app_license = "mit"
 app_include_js = ["/assets/vaaman/js/payment_request.js", "/assets/vaaman/js/reco.js"]
 
 doctype_js = {
-	"Payment Entry": "public/js/reco.js",
+	"Payment Entry": [
+		"public/js/payment_entry_bank.js",
+		"public/js/reco.js",
+	],
+	"Payment Request": "public/js/payment_request_bank.js",
 }
 
 doctype_list_js = {"Payment Request": "public/js/payment_request_list.js"}
